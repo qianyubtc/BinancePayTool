@@ -1,0 +1,57 @@
+name: CI
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  core-and-sdks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: server/go.sum
+      - name: 服务端 vet + 测试
+        run: cd server && go vet ./... && go test ./... -count=1
+      - name: 编译服务端二进制
+        run: cd server && go build -o bpaygate .
+      - name: Go SDK 测试
+        run: cd sdk/go && go vet ./... && go test ./... -count=1
+      - name: Go 示例编译
+        run: cd examples/go && go build ./... && rm -f bpaygate-example
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python SDK 向量测试
+        run: python3 sdk/python/test_bpaygate.py
+      - name: 跨语言端到端（真实二进制 × Python SDK × mock 币安）
+        run: python3 e2e/cross_e2e.py server/bpaygate
+
+  php-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+      - name: 语法检查
+        run: php -l sdk/php/BPayGate.php && php -l sdk/php/test_vectors.php && php -l examples/php/index.php && php -l examples/php/notify.php
+      - name: 向量测试
+        run: php sdk/php/test_vectors.php
+
+  java-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: 下载 Gson
+        run: curl -sSLo gson.jar https://repo1.maven.org/maven2/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar
+      - name: 编译 SDK 与示例（-source 8 兼容校验交给 pom；此处用当前 JDK）
+        run: mkdir -p out && javac -encoding UTF-8 -cp gson.jar -d out sdk/java/BPayGateClient.java sdk/java/VectorTest.java examples/java/ExampleServer.java
+      - name: 向量测试
+        run: cd out && java -cp .:../gson.jar VectorTest ../docs/test_vectors.json

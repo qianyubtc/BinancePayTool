@@ -1,0 +1,21 @@
+# 本地私有内容（不进开源仓库）
+CLAUDE.md
+docs_币安支付个人收款网关_可行性调研.md
+config.env
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+qr.png
+qr.jpg
+
+# 临时工具链与构建产物
+.toolchain/
+bpaygate
+bpaygate-*
+server/bpaygate
+*.class
+sdk/java/*.jar
+__pycache__/
+*.pyc
+.DS_Store

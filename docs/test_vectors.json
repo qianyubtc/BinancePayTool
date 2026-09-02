@@ -1,0 +1,52 @@
+{
+  "secret": "test-secret-0123456789abcdef",
+  "note": "所有 SDK 与服务端的签名实现必须通过本文件全部用例",
+  "cases": [
+    {
+      "type": "request",
+      "timestamp": "1788326000000",
+      "nonce": "nonce-0123456789abcdef",
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "body": "{\"merchant_order_id\":\"M1001\",\"currency\":\"USDT\",\"amount\":\"10\",\"callback_url\":\"https://shop.example.com/notify\"}",
+      "body_sha256": "22b3f243103ddcb2ad8d915ff9ef2a963f8975a753f62baa97c3ddee62b2ab10",
+      "signature": "9f1f26f95c7996cd3a225cc40ad79b29ec863de58e282ea7f77c6a4509d31925"
+    },
+    {
+      "type": "request",
+      "timestamp": "1788326001234",
+      "nonce": "9f8e7d6c5b4a39281706fedcba",
+      "method": "GET",
+      "path": "/api/v1/orders/01hxyzabcdefghjkmnpqrs",
+      "body": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "433d6094d014157c9883e99781c93afab4d3c10a0ef605fe1840552038538ee4"
+    },
+    {
+      "type": "request",
+      "timestamp": "1788326002000",
+      "nonce": "unicode-测试-nonce-000001",
+      "method": "POST",
+      "path": "/api/v1/orders/01hxyzabcdefghjkmnpqrs/close",
+      "body": "{}",
+      "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "signature": "5db7765bc4562c3ab279f23b8688557158cdf4d73941657c63b1666ba3aa16d2"
+    },
+    {
+      "type": "callback",
+      "timestamp": "1788326100000",
+      "nonce": "cbnonce-abcdef0123456789",
+      "body": "{\"event\":\"paid\",\"order_id\":\"01hxyzabcdefghjkmnpqrs\",\"merchant_order_id\":\"M1001\",\"status\":\"paid\",\"currency\":\"USDT\",\"base_amount\":\"10\",\"pay_amount\":\"10.0037\",\"actual_amount\":\"10.0037\",\"overpaid\":false,\"matched_by\":\"amount\",\"binance_order_id\":\"452021922068888888\",\"binance_txn_id\":\"P_EXAMPLE1234567890\",\"payer_id\":\"1160000000\",\"paid_at\":1788325910559,\"timestamp\":1788326100000}",
+      "body_sha256": "aa8e1b00794fb83de98fefa39d37d070930db888602a7de5e50d71804beed493",
+      "signature": "88d62e1ff11da171fc185f8f04ef9ec74df7251fc96c833fb786d82b024ff383"
+    },
+    {
+      "type": "callback",
+      "timestamp": "1788326200000",
+      "nonce": "cbnonce-fedcba9876543210",
+      "body": "{\"event\":\"expired\",\"order_id\":\"01habcdefghjkmnpqrstuv\",\"merchant_order_id\":\"M1002\",\"status\":\"expired\",\"currency\":\"USDC\",\"base_amount\":\"5.5\",\"pay_amount\":\"5.5123\",\"actual_amount\":\"\",\"overpaid\":false,\"matched_by\":\"\",\"binance_order_id\":\"\",\"binance_txn_id\":\"\",\"payer_id\":\"\",\"paid_at\":0,\"timestamp\":1788326200000}",
+      "body_sha256": "205e708b5c9939e16bed46acedd2d0ba0a668a3b30979cce51f274a17a732074",
+      "signature": "726ac40414e5c461f06211148db7166e32703c22d1b0ad3dad29b1e1c87a61d4"
+    }
+  ]
+}

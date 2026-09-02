@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>订单支付</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#16181d;--muted:#6b7280;--brand:#f0b90b;--ok:#16a34a;--err:#dc2626;--line:#e5e7eb}
+@media(prefers-color-scheme:dark){:root{--bg:#101216;--card:#181b21;--fg:#e7e9ee;--muted:#9aa1ad;--line:#2a2f38}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:460px;margin:0 auto;padding:20px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+h1{font-size:17px;margin:0 0 4px}.muted{color:var(--muted);font-size:13px}
+.amt{font-size:34px;font-weight:700;margin:10px 0 2px;word-break:break-all}
+.amt small{font-size:16px;font-weight:600;margin-left:4px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line);gap:10px}
+.row:first-of-type{border-top:none}
+.k{color:var(--muted);font-size:13px;white-space:nowrap}.v{font-weight:600;word-break:break-all;text-align:right}
+button{border:0;border-radius:9px;padding:9px 14px;font-size:13px;cursor:pointer;background:var(--brand);color:#111;font-weight:600}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+.copy{padding:3px 10px;font-size:12px;margin-left:6px;background:transparent;border:1px solid var(--line);color:var(--fg)}
+.qr{display:block;margin:12px auto 4px;width:210px;max-width:80%;border-radius:10px}
+.tip{background:rgba(240,185,11,.12);border:1px solid rgba(240,185,11,.4);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px}
+.status{display:flex;align-items:center;gap:8px;font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--brand);animation:b 1.2s infinite}
+@keyframes b{50%{opacity:.25}}
+.paid .dot{background:var(--ok);animation:none}
+.bad{color:var(--err)}.good{color:var(--ok)}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--fg);font-size:14px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px}
+#claimMsg{font-size:13px;margin-top:8px}
+.center{text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card center">
+    <h1>请用币安 App「支付」转账</h1>
+    <div class="muted">Binance Pay · 即时到账 · 0 手续费</div>
+    <div class="amt" id="payAmount">{{.PayAmount}}<small>{{.Currency}}</small></div>
+    <div class="muted">请务必按上方金额<strong>一分不差</strong>支付，用于自动确认</div>
+    <button class="copy" onclick="cp('{{.PayAmount}}',this)">复制金额</button>
+    {{if .HasQR}}<img class="qr" src="qr" alt="收款二维码"><div class="muted">币安 App 扫码，或用下方 UID 转账</div>{{end}}
+  </div>
+
+  <div class="card">
+    <div class="row"><span class="k">收款人币安 UID</span><span class="v">{{.UID}}<button class="copy" onclick="cp('{{.UID}}',this)">复制</button></span></div>
+    {{if .Email}}<div class="row"><span class="k">或收款邮箱</span><span class="v">{{.Email}}<button class="copy" onclick="cp('{{.Email}}',this)">复制</button></span></div>{{end}}
+    <div class="row"><span class="k">转账备注（可选）</span><span class="v">{{.NoteCode}}<button class="copy" onclick="cp('{{.NoteCode}}',this)">复制</button></span></div>
+    <div class="row"><span class="k">剩余时间</span><span class="v" id="cd">--:--</span></div>
+    <div class="row"><span class="k">状态</span><span class="v status" id="st"><span class="dot"></span><span id="stTxt">等待支付</span></span></div>
+    <div class="tip">路径：币安 App → 首页「支付」→ 转账 → 输入 UID → 选 {{.Currency}} → 输入金额。备注填 <b>{{.NoteCode}}</b> 可加速确认。</div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>已付款但长时间未确认？回填币安订单编号</summary>
+      <p class="muted" style="margin:10px 0 6px">币安 App → 支付 → 交易记录 → 点开这笔转账，复制「订单编号」（18 位数字）粘贴到此处：</p>
+      <input id="claimInput" inputmode="numeric" placeholder="例如 452021922068888888">
+      <div style="margin-top:10px"><button onclick="claim()">提交核验</button></div>
+      <div id="claimMsg"></div>
+    </details>
+  </div>
+</div>
+<script>
+var expiresAt={{.ExpiresAt}}, token={{.Token}}, done=false;
+function cp(t,btn){navigator.clipboard&&navigator.clipboard.writeText(t).then(function(){var o=btn.textContent;btn.textContent="已复制";setTimeout(function(){btn.textContent=o},1200)})}
+function tick(){var left=Math.max(0,Math.floor((expiresAt-Date.now())/1000));var m=String(Math.floor(left/60)).padStart(2,"0"),s=String(left%60).padStart(2,"0");document.getElementById("cd").textContent=m+":"+s;if(left<=0&&!done){setTxt("已超时，若已付款请回填订单编号","bad")}}
+function setTxt(t,cls){var el=document.getElementById("stTxt");el.textContent=t;el.className=cls||""}
+function onPaid(d){done=true;document.getElementById("st").classList.add("paid");setTxt("支付成功 ✓","good");if(d.redirect){setTimeout(function(){location.href=d.redirect},1500)}}
+function poll(){if(done)return;fetch("status",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
+ if(d.status==="paid"){onPaid(d)}
+ else if(d.status==="underpaid"){done=true;setTxt("实付金额不足，请联系商家处理","bad")}
+ else if(d.status==="expired"){setTxt("订单已过期，若已付款请回填订单编号","bad")}
+ else if(d.status==="closed"){done=true;setTxt("订单已关闭","bad")}
+}).catch(function(){})}
+function claim(){var v=document.getElementById("claimInput").value.trim();var msg=document.getElementById("claimMsg");
+ if(!/^[0-9]{6,20}$/.test(v)){msg.textContent="请输入 6~20 位数字订单编号";msg.className="bad";return}
+ msg.textContent="核验中…";msg.className="";
+ fetch("claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({binance_order_id:v})})
+ .then(function(r){return r.json()}).then(function(d){
+   var c=(d.data&&d.data.code)||d.code;
+   if(c==="OK"){msg.textContent="核验成功，订单已支付 ✓";msg.className="good";poll()}
+   else if(c==="UNDERPAID"){msg.textContent="已到账但金额不足，请联系商家";msg.className="bad"}
+   else if(c==="NOT_FOUND"){msg.textContent="未找到这笔入账，请确认编号无误、稍等片刻再试";msg.className="bad"}
+   else if(c==="CONSUMED"){msg.textContent="该笔转账已被使用";msg.className="bad"}
+   else if(c==="ERR_RATE_LIMIT"){msg.textContent="操作过于频繁，请稍后再试";msg.className="bad"}
+   else{msg.textContent="核验失败："+(d.message||c||"未知错误");msg.className="bad"}
+ }).catch(function(){msg.textContent="网络错误，请重试";msg.className="bad"})}
+tick();setInterval(tick,1000);poll();setInterval(poll,3000);
+</script>
+</body>
+</html>
