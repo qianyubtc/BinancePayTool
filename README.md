@@ -140,7 +140,7 @@ print(gw.create_order("TEST-1", "1", currency="USDT")["pay_url"])
 
 如果这个项目帮到了你，欢迎 Star / 提 Issue / 交 PR。
 
-还没有币安账号的话，用作者的邀请链接注册就是最好的支持（对你免费，作者获得手续费返佣），邀请码 **QY333**：
+还没有币安账号的话，用作者的邀请链接注册就是最好的支持（你省手续费的同时还支持了作者），邀请码 **QY333**：
 
 - 官方域名：<https://accounts.binance.com/register?ref=QY333>
 - 备用镜像（部分地区）：<https://www.bsmkweb.click/register?ref=QY333>
