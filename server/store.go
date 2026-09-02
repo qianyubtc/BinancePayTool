@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 
@@ -466,5 +465,3 @@ func (s *Store) CallbackRetry(id int64, attempt int, nextAt int64, lastErr strin
 	_, err := s.db.Exec(`UPDATE callbacks SET attempt=?, next_at=?, last_err=? WHERE id=?`, attempt, nextAt, lastErr, id)
 	return err
 }
-
-func (s *Store) String() string { return fmt.Sprintf("Store(%p)", s.db) }

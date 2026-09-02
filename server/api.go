@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 type App struct {
@@ -276,5 +275,3 @@ func clientIP(r *http.Request) string {
 	}
 	return r.RemoteAddr
 }
-
-var _ = time.Now
