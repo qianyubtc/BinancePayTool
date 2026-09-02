@@ -1,5 +1,8 @@
 # BinancePayTool · 币安支付个人收款网关
 
+[![CI](https://github.com/qianyubtc/BinancePayTool/actions/workflows/ci.yml/badge.svg)](https://github.com/qianyubtc/BinancePayTool/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > 用一个**普通币安个人账户**收 Binance Pay 转账，自动确认到账、回调你的业务系统。
 > 单二进制部署，官方只读 API，零手续费、即时到账。
 > 附 **Go / Java / PHP / Python** 四语言接入 SDK。
