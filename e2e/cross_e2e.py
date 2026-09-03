@@ -139,6 +139,9 @@ DB_PATH={tempfile.mkdtemp()}/e2e.db
         # ③ 收银页可渲染
         html = urllib.request.urlopen(base + "/pay/" + token, timeout=5).read().decode()
         assert "币安" in html and order2["note_code"] in html
+        # 页面 JS 轮询的状态接口必须真实可达（相对路径曾导致 /pay/status 404）
+        st = json.loads(urllib.request.urlopen(base + f"/pay/{token}/status", timeout=5).read())
+        assert st["status"] == "paid", st
         print("③ 收银页渲染 ... PASS")
         print("CROSS-E2E ALL PASS")
     finally:

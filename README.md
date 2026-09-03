@@ -81,8 +81,8 @@ cp config.example.env config.env
 
 ```python
 import sys; sys.path.insert(0, "sdk/python")
-from bpaygate import BinancePayTool
-gw = BinancePayTool("http://127.0.0.1:8080", "你的API_AUTH_KEY")
+from bpaygate import BPayGate
+gw = BPayGate("http://127.0.0.1:8080", "你的API_AUTH_KEY")
 print(gw.create_order("TEST-1", "1", currency="USDT")["pay_url"])
 ```
 

@@ -40,7 +40,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     <div class="amt" id="payAmount">{{.PayAmount}}<small>{{.Currency}}</small></div>
     <div class="muted">请务必按上方金额<strong>一分不差</strong>支付，用于自动确认</div>
     <button class="copy" onclick="cp('{{.PayAmount}}',this)">复制金额</button>
-    {{if .HasQR}}<img class="qr" src="qr" alt="收款二维码"><div class="muted">币安 App 扫码，或用下方 UID 转账</div>{{end}}
+    {{if .HasQR}}<img class="qr" src="/pay/{{.Token}}/qr" alt="收款二维码"><div class="muted">币安 App 扫码，或用下方 UID 转账</div>{{end}}
   </div>
 
   <div class="card">
@@ -68,7 +68,7 @@ function cp(t,btn){navigator.clipboard&&navigator.clipboard.writeText(t).then(fu
 function tick(){var left=Math.max(0,Math.floor((expiresAt-Date.now())/1000));var m=String(Math.floor(left/60)).padStart(2,"0"),s=String(left%60).padStart(2,"0");document.getElementById("cd").textContent=m+":"+s;if(left<=0&&!done){setTxt("已超时，若已付款请回填订单编号","bad")}}
 function setTxt(t,cls){var el=document.getElementById("stTxt");el.textContent=t;el.className=cls||""}
 function onPaid(d){done=true;document.getElementById("st").classList.add("paid");setTxt("支付成功 ✓","good");if(d.redirect){setTimeout(function(){location.href=d.redirect},1500)}}
-function poll(){if(done)return;fetch("status",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
+function poll(){if(done)return;fetch("/pay/"+token+"/status",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
  if(d.status==="paid"){onPaid(d)}
  else if(d.status==="underpaid"){done=true;setTxt("实付金额不足，请联系商家处理","bad")}
  else if(d.status==="expired"){setTxt("订单已过期，若已付款请回填订单编号","bad")}
@@ -77,7 +77,7 @@ function poll(){if(done)return;fetch("status",{cache:"no-store"}).then(function(
 function claim(){var v=document.getElementById("claimInput").value.trim();var msg=document.getElementById("claimMsg");
  if(!/^[0-9]{6,20}$/.test(v)){msg.textContent="请输入 6~20 位数字订单编号";msg.className="bad";return}
  msg.textContent="核验中…";msg.className="";
- fetch("claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({binance_order_id:v})})
+ fetch("/pay/"+token+"/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({binance_order_id:v})})
  .then(function(r){return r.json()}).then(function(d){
    var c=(d.data&&d.data.code)||d.code;
    if(c==="OK"){msg.textContent="核验成功，订单已支付 ✓";msg.className="good";poll()}

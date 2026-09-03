@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -336,4 +337,27 @@ func TestAllocatorUniqueness(t *testing.T) {
 			t.Fatalf("冷却期内金额被复用: %s", closedAmt)
 		}
 	}
+}
+
+// 收银页内的异步请求必须是带 token 的绝对路径：/pay/{token} 无尾斜杠，相对路径会解析到 /pay/status 而 404
+func TestCashierAbsolutePaths(t *testing.T) {
+	e := newEnv(t)
+	d := e.create("M-cashier-1", "USDT", "3", "")
+	token := d["pay_url"].(string)[len("http://gw.test/pay/"):]
+	resp, err := http.Get(e.srv.URL + "/pay/" + token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	for _, want := range []string{"/pay/\"+token+\"/status", "/pay/\"+token+\"/claim"} {
+		if !strings.Contains(string(html), want) {
+			t.Fatalf("收银页缺少绝对路径 %q", want)
+		}
+	}
+	resp, err = http.Get(e.srv.URL + "/pay/" + token + "/status")
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("状态接口不可达: %v %d", err, resp.StatusCode)
+	}
+	resp.Body.Close()
 }
