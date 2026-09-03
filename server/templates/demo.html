@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BinancePayTool 体验</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#16181d;--muted:#6b7280;--brand:#f0b90b;--ok:#16a34a;--err:#dc2626;--line:#e5e7eb}
+@media(prefers-color-scheme:dark){:root{--bg:#101216;--card:#181b21;--fg:#e7e9ee;--muted:#9aa1ad;--line:#2a2f38}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:24px 16px 48px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:0 0 10px}
+.muted{color:var(--muted);font-size:13px}
+a{color:inherit}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0 14px}
+.opt{border:1px solid var(--line);border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;font-size:13px}
+.opt b{display:block;font-size:17px}
+.opt.on{border-color:var(--brand);background:rgba(240,185,11,.12)}
+label{font-size:13px;color:var(--muted)}
+select{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--fg);font-size:14px}
+button{border:0;border-radius:10px;padding:13px 16px;font-size:15px;cursor:pointer;background:var(--brand);color:#111;font-weight:700;width:100%;margin-top:12px}
+.err{color:var(--err);font-size:13px;margin-top:8px}
+.ok{color:var(--ok)}
+ul{margin:6px 0 0;padding-left:18px;font-size:14px}li{margin:4px 0}
+.modes{display:grid;gap:8px;margin:6px 0 4px}
+.mode{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px}
+.mode.on{border-color:var(--brand);background:rgba(240,185,11,.12)}
+.mode input{margin-top:3px}.mode b{display:block;font-size:14px}.mode span{color:var(--muted)}
+.warn{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.35);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px}
+code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>BinancePayTool 体验</h1>
+    <div class="muted">用普通币安个人账户收 Binance Pay 转账的开源收款网关 · <a href="{{.Repo}}" target="_blank" rel="noopener">GitHub</a> · v{{.Version}}</div>
+    <div class="muted" style="margin-top:10px"><b>三种付款方式</b>（收银页按设备自动切换）</div>
+    <ul>
+      <li><b>桌面端</b>：币安 App 扫收银页二维码</li>
+      <li><b>手机端</b>：一键唤起币安 App{{if not .HasApp}}（本站暂未配置）{{end}}</li>
+      <li><b>兜底</b>：按 UID 手动转账</li>
+    </ul>
+    <div class="muted" style="margin-top:10px"><b>三种到账确认方式</b>（网关同时生效，下单时可选一种来体验）</div>
+    <ul>
+      <li><b>唯一金额</b>：每单分配唯一尾数，付款金额即订单指纹，零动作自动确认</li>
+      <li><b>备注码</b>：金额不精确也行，备注带上 6 位码即可确认</li>
+      <li><b>回填订单编号</b>：什么都没带？付完粘贴币安订单编号，秒级核验</li>
+    </ul>
+    <div class="muted" style="margin-top:8px">付完款后收银页几秒内自动变绿，这就是网关在用币安官方只读接口对账。</div>
+  </div>
+
+  {{if .Done}}
+  <div class="card">
+    <h2>体验结果</h2>
+    {{if eq .DoneStatus "paid"}}
+      <p class="ok"><b>支付成功 ✓</b> 实收 {{.DoneAmount}} {{.DoneCur}}</p>
+      <p>本笔由「<b>{{.DoneBy}}</b>」确认到账。</p>
+    {{else}}
+      <p>订单状态：<b>{{.DoneStatus}}</b></p>
+    {{end}}
+    <a href="/demo">再来一次</a>
+  </div>
+  {{end}}
+
+  <div class="card">
+    <h2>选择体验金额</h2>
+    <form method="post" action="/demo/order" id="f">
+      <div class="grid" id="amts">
+        {{range $i, $a := .Amounts}}<div class="opt{{if eq $i 0}} on{{end}}" data-v="{{$a}}"><b>{{$a}}</b>体验</div>{{end}}
+      </div>
+      <input type="hidden" name="amount" id="amount" value="{{index .Amounts 0}}">
+      <label>币种 &nbsp;<select name="currency">{{range .Currencies}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      <h2 style="margin-top:16px">选择要体验的到账确认方式</h2>
+      <div class="modes">
+        <label class="mode on"><input type="radio" name="mode" value="amount" checked><div><b>唯一金额（默认）</b><span>按收银页金额一分不差支付，不填备注，付完自动确认</span></div></label>
+        <label class="mode"><input type="radio" name="mode" value="note"><div><b>备注码</b><span>金额 ≥ 基础金额即可，备注必须填 6 位码，靠备注确认</span></div></label>
+        <label class="mode"><input type="radio" name="mode" value="claim"><div><b>回填订单编号</b><span>付基础金额、不填备注，付完在收银页粘贴币安订单编号核验</span></div></label>
+      </div>
+      <button type="submit">去支付</button>
+      {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
+    </form>
+    <div class="warn">这是<b>真实转账</b>，付出的加密货币会进入站长账户，仅用于演示，请选择最小金额体验。</div>
+  </div>
+
+  <div class="card">
+    <h2>接入到你的项目</h2>
+    <div class="muted">三步：创建订单 → 跳转收银页 → 处理签名回调。提供 Go / Java / PHP / Python SDK，协议与源码见 <a href="{{.Repo}}" target="_blank" rel="noopener">仓库</a>。</div>
+  </div>
+</div>
+<script>
+document.querySelectorAll(".opt").forEach(function(e){e.onclick=function(){document.querySelectorAll(".opt").forEach(function(x){x.classList.remove("on")});e.classList.add("on");document.getElementById("amount").value=e.dataset.v}});
+document.querySelectorAll(".mode input").forEach(function(i){i.onchange=function(){document.querySelectorAll(".mode").forEach(function(m){m.classList.toggle("on",m.querySelector("input").checked)})}});
+</script>
+</body>
+</html>

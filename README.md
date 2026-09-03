@@ -50,7 +50,8 @@ sequenceDiagram
 ## 特性
 
 - **单二进制 + SQLite**，无外部依赖；Docker 一行起
-- 托管收银页：大字金额一键复制、二维码展示、倒计时、状态轮询、回填入口，适配移动端与深色模式
+- 托管收银页三种付款方式按设备自动切换：**桌面扫码 / 手机一键唤起币安 App / 手动按 UID 转账**，大字金额一键复制、倒计时、状态轮询、回填入口，适配深色模式
+- 内置体验页 `/demo`（默认关闭），一键部署一个公开演示站
 - 唯一金额**递进式尾数**：优先 0.0001–0.0099 档（付款方最多多付一分钱级别），档位用满自动升位，同价并发容量最高 9999
 - 金额冷却：订单结束后该金额 24h 不复用，杜绝迟付错配
 - 回调 HMAC-SHA256 签名 + 时间戳 + nonce 防重放，`0s/15s/1m/5m/15m/1h/3h` 七次重试
@@ -112,6 +113,10 @@ print(gw.create_order("TEST-1", "1", currency="USDT")["pay_url"])
 | `AMOUNT_DECIMALS` | 4 | 唯一金额小数位（实测币安支持至少 4） |
 | `SUFFIX_MODE` | add | add=多收尾数 / sub=少收尾数 |
 | `EXPIRED_GRACE` | 1800 | 过期后宽限期，期内精确到账仍自动确认 |
+| `RECEIVE_LINK` | 空 | 收款二维码解码出的链接；配置后启用扫码与唤起 App 两种方式 |
+| `DEMO_ENABLED` | false | 开启 `/demo` 体验页 |
+
+部署到 VPS + Cloudflare 域名：[docs/deploy.md](docs/deploy.md)（含 systemd、Caddy、Cloudflare Tunnel 配置）。
 
 ## 必读：风险与边界
 

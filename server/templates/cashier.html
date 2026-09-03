@@ -14,12 +14,11 @@ h1{font-size:17px;margin:0 0 4px}.muted{color:var(--muted);font-size:13px}
 .amt{font-size:34px;font-weight:700;margin:10px 0 2px;word-break:break-all}
 .amt small{font-size:16px;font-weight:600;margin-left:4px}
 .row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line);gap:10px}
-.row:first-of-type{border-top:none}
+.row:first-child{border-top:none}
 .k{color:var(--muted);font-size:13px;white-space:nowrap}.v{font-weight:600;word-break:break-all;text-align:right}
 button{border:0;border-radius:9px;padding:9px 14px;font-size:13px;cursor:pointer;background:var(--brand);color:#111;font-weight:600}
-button.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
 .copy{padding:3px 10px;font-size:12px;margin-left:6px;background:transparent;border:1px solid var(--line);color:var(--fg)}
-.qr{display:block;margin:12px auto 4px;width:210px;max-width:80%;border-radius:10px}
+.qr{display:block;margin:12px auto 6px;width:220px;max-width:80%;border-radius:10px;background:#fff;padding:8px}
 .tip{background:rgba(240,185,11,.12);border:1px solid rgba(240,185,11,.4);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px}
 .status{display:flex;align-items:center;gap:8px;font-weight:600}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--brand);animation:b 1.2s infinite}
@@ -30,6 +29,12 @@ input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;bac
 details summary{cursor:pointer;color:var(--muted);font-size:13px}
 #claimMsg{font-size:13px;margin-top:8px}
 .center{text-align:center}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{flex:1;text-align:center;padding:9px 6px;border-radius:9px;border:1px solid var(--line);font-size:13px;cursor:pointer;color:var(--muted);background:transparent}
+.tab.on{background:var(--brand);color:#111;border-color:var(--brand);font-weight:600}
+.panel{display:none}.panel.on{display:block}
+.appbtn{display:block;width:100%;text-align:center;padding:14px;border-radius:12px;background:var(--brand);color:#111;font-weight:700;font-size:16px;text-decoration:none;margin:8px 0 4px}
+.steps{font-size:13px;color:var(--muted);line-height:1.9;margin:6px 0 0;padding-left:18px}
 </style>
 </head>
 <body>
@@ -37,24 +42,59 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   <div class="card center">
     <h1>请用币安 App「支付」转账</h1>
     <div class="muted">Binance Pay · 即时到账 · 0 手续费</div>
-    <div class="amt" id="payAmount">{{.PayAmount}}<small>{{.Currency}}</small></div>
-    <div class="muted">请务必按上方金额<strong>一分不差</strong>支付，用于自动确认</div>
-    <button class="copy" onclick="cp('{{.PayAmount}}',this)">复制金额</button>
-    {{if .HasQR}}<img class="qr" src="/pay/{{.Token}}/qr" alt="收款二维码"><div class="muted">币安 App 扫码，或用下方 UID 转账</div>{{end}}
+    <div class="amt" id="payAmount">{{.ShowAmount}}<small>{{.Currency}}</small></div>
+    {{if eq .Mode "note"}}<div class="muted">体验<strong>备注码匹配</strong>：金额 ≥ {{.ShowAmount}} 即可，不要求精确；<strong>备注必须填 {{.NoteCode}}</strong></div>
+    {{else if eq .Mode "claim"}}<div class="muted">体验<strong>回填订单编号</strong>：支付 {{.ShowAmount}}，<strong>不要填备注</strong>，付完在下方粘贴币安订单编号</div>
+    {{else}}<div class="muted">请务必按上方金额<strong>一分不差</strong>支付，用于自动确认</div>{{end}}
+    <button class="copy" onclick="cp('{{.ShowAmount}}',this)">复制金额</button>
   </div>
 
   <div class="card">
-    <div class="row"><span class="k">收款人币安 UID</span><span class="v">{{.UID}}<button class="copy" onclick="cp('{{.UID}}',this)">复制</button></span></div>
-    {{if .Email}}<div class="row"><span class="k">或收款邮箱</span><span class="v">{{.Email}}<button class="copy" onclick="cp('{{.Email}}',this)">复制</button></span></div>{{end}}
-    <div class="row"><span class="k">转账备注（可选）</span><span class="v">{{.NoteCode}}<button class="copy" onclick="cp('{{.NoteCode}}',this)">复制</button></span></div>
+    <div class="tabs">
+      {{if .HasQR}}<div class="tab" data-t="scan">扫码支付</div>{{end}}
+      {{if .AppLink}}<div class="tab" data-t="app">打开币安 App</div>{{end}}
+      <div class="tab" data-t="manual">手动转账</div>
+    </div>
+
+    {{if .HasQR}}
+    <div class="panel" id="p-scan">
+      <img class="qr" src="/pay/{{.Token}}/qr" alt="收款二维码">
+      <ol class="steps">
+        <li>打开币安 App，首页点「扫一扫」扫描上方二维码</li>
+        <li>选择币种 <b>{{.Currency}}</b>，输入金额 <b>{{.ShowAmount}}</b></li>
+        <li>{{.NoteHint}}，确认支付</li>
+      </ol>
+    </div>
+    {{end}}
+
+    {{if .AppLink}}
+    <div class="panel" id="p-app">
+      <a class="appbtn" href="{{.AppLink}}">打开币安 App 支付</a>
+      <div class="muted center">未安装币安 App 时会打开网页版</div>
+      <ol class="steps">
+        <li>跳转后收款人已自动填好，请核对 UID <b>{{.UID}}</b></li>
+        <li>选择币种 <b>{{.Currency}}</b>，输入金额 <b>{{.ShowAmount}}</b></li>
+        <li>{{.NoteHint}}，确认支付后回到本页等待确认</li>
+      </ol>
+    </div>
+    {{end}}
+
+    <div class="panel" id="p-manual">
+      <div class="row"><span class="k">收款人币安 UID</span><span class="v">{{.UID}}<button class="copy" onclick="cp('{{.UID}}',this)">复制</button></span></div>
+      {{if .Email}}<div class="row"><span class="k">或收款邮箱</span><span class="v">{{.Email}}<button class="copy" onclick="cp('{{.Email}}',this)">复制</button></span></div>{{end}}
+      <div class="row"><span class="k">{{.NoteLabel}}</span><span class="v">{{.NoteCode}}<button class="copy" onclick="cp('{{.NoteCode}}',this)">复制</button></span></div>
+      <div class="tip">路径：币安 App → 首页「支付」→ 转账 → 输入 UID → 选 {{.Currency}} → 输入金额 {{.ShowAmount}}。{{.NoteHint}}。</div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="row"><span class="k">剩余时间</span><span class="v" id="cd">--:--</span></div>
     <div class="row"><span class="k">状态</span><span class="v status" id="st"><span class="dot"></span><span id="stTxt">等待支付</span></span></div>
-    <div class="tip">路径：币安 App → 首页「支付」→ 转账 → 输入 UID → 选 {{.Currency}} → 输入金额。备注填 <b>{{.NoteCode}}</b> 可加速确认。</div>
   </div>
 
   <div class="card">
-    <details>
-      <summary>已付款但长时间未确认？回填币安订单编号</summary>
+    <details{{if eq .Mode "claim"}} open{{end}}>
+      <summary>{{if eq .Mode "claim"}}付完款后在这里回填币安订单编号{{else}}已付款但长时间未确认？回填币安订单编号{{end}}</summary>
       <p class="muted" style="margin:10px 0 6px">币安 App → 支付 → 交易记录 → 点开这笔转账，复制「订单编号」（18 位数字）粘贴到此处：</p>
       <input id="claimInput" inputmode="numeric" placeholder="例如 452021922068888888">
       <div style="margin-top:10px"><button onclick="claim()">提交核验</button></div>
@@ -63,7 +103,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   </div>
 </div>
 <script>
-var expiresAt={{.ExpiresAt}}, token={{.Token}}, done=false;
+var expiresAt={{.ExpiresAt}}, token={{.Token}}, isMobile={{.IsMobile}}, hasApp={{if .AppLink}}true{{else}}false{{end}}, hasQR={{if .HasQR}}true{{else}}false{{end}}, done=false;
+function showTab(t){document.querySelectorAll(".tab").forEach(function(e){e.classList.toggle("on",e.dataset.t===t)});document.querySelectorAll(".panel").forEach(function(e){e.classList.toggle("on",e.id==="p-"+t)})}
+document.querySelectorAll(".tab").forEach(function(e){e.onclick=function(){showTab(e.dataset.t)}});
+showTab(isMobile?(hasApp?"app":"manual"):(hasQR?"scan":"manual"));
 function cp(t,btn){navigator.clipboard&&navigator.clipboard.writeText(t).then(function(){var o=btn.textContent;btn.textContent="已复制";setTimeout(function(){btn.textContent=o},1200)})}
 function tick(){var left=Math.max(0,Math.floor((expiresAt-Date.now())/1000));var m=String(Math.floor(left/60)).padStart(2,"0"),s=String(left%60).padStart(2,"0");document.getElementById("cd").textContent=m+":"+s;if(left<=0&&!done){setTxt("已超时，若已付款请回填订单编号","bad")}}
 function setTxt(t,cls){var el=document.getElementById("stTxt");el.textContent=t;el.className=cls||""}

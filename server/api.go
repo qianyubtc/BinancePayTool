@@ -3,12 +3,15 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 type App struct {
@@ -24,6 +27,8 @@ type App struct {
 
 	rlMu sync.Mutex
 	rl   map[string][]int64 // 限流：key → 时间戳窗口
+
+	qrPNG []byte // 由 RECEIVE_LINK 生成的收款二维码（启动时生成一次）
 }
 
 func newApp(cfg *Config) (*App, error) {
@@ -39,6 +44,13 @@ func newApp(cfg *Config) (*App, error) {
 		nonces:   map[string]int64{},
 		rl:       map[string][]int64{},
 	}
+	if cfg.ReceiveLink != "" && cfg.QRImage == "" {
+		png, err := qrcode.Encode(cfg.ReceiveLink, qrcode.Medium, 360)
+		if err != nil {
+			return nil, fmt.Errorf("生成收款二维码失败: %w", err)
+		}
+		a.qrPNG = png
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/orders", a.auth(a.handleCreate))
 	mux.HandleFunc("GET /api/v1/orders/{id}", a.auth(a.handleGet))
@@ -51,7 +63,16 @@ func newApp(cfg *Config) (*App, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true, "version": version})
 	})
+	if cfg.DemoEnabled {
+		mux.HandleFunc("GET /demo", a.handleDemo)
+		mux.HandleFunc("POST /demo/order", a.handleDemoOrder)
+		mux.HandleFunc("GET /demo/done", a.handleDemoDone)
+	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		if cfg.DemoEnabled {
+			http.Redirect(w, r, "/demo", http.StatusFound)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("BinancePayTool " + version + " running\n"))
 	})
@@ -269,7 +290,21 @@ func (a *App) handleClose(w http.ResponseWriter, r *http.Request, _ []byte) {
 	ok(w, a.orderJSON(o))
 }
 
-func clientIP(r *http.Request) string {
+// clientIP 取访客 IP。直连时用 RemoteAddr；TRUST_PROXY 开启时依次信任
+// CF-Connecting-IP（Cloudflare）、X-Real-IP、X-Forwarded-For 首个地址。
+func (a *App) clientIP(r *http.Request) string {
+	if a.cfg.TrustProxy {
+		for _, h := range []string{"CF-Connecting-IP", "X-Real-IP"} {
+			if v := strings.TrimSpace(r.Header.Get(h)); v != "" {
+				return v
+			}
+		}
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
+				return first
+			}
+		}
+	}
 	if i := strings.LastIndex(r.RemoteAddr, ":"); i > 0 {
 		return r.RemoteAddr[:i]
 	}

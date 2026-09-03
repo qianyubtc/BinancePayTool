@@ -17,7 +17,11 @@ type Config struct {
 	BinanceUID     string
 	BinanceAPIBase string
 	QRImage        string
+	ReceiveLink    string // 收款二维码解码出的通用链接，用于服务端生成二维码与 H5 唤起 App
 	ReceiveEmail   string
+	DemoEnabled    bool
+	DemoAmounts    []string
+	TrustProxy     bool // 反代之后按 CF-Connecting-IP / X-Real-IP / X-Forwarded-For 取访客 IP
 	Currencies     map[string]bool
 	OrderTTL       int64 // 秒
 	ExpiredGrace   int64 // 秒
@@ -77,7 +81,10 @@ func loadConfig(path string) (*Config, error) {
 		BinanceUID:     get("BINANCE_UID", ""),
 		BinanceAPIBase: strings.TrimRight(get("BINANCE_API_BASE", "https://api.binance.com"), "/"),
 		QRImage:        get("QR_IMAGE", ""),
+		ReceiveLink:    strings.TrimSpace(get("RECEIVE_LINK", "")),
 		ReceiveEmail:   get("RECEIVE_EMAIL", ""),
+		DemoEnabled:    isTrue(get("DEMO_ENABLED", "false")),
+		TrustProxy:     isTrue(get("TRUST_PROXY", "false")),
 		Currencies:     map[string]bool{},
 		OrderTTL:       getInt("ORDER_TTL", 900),
 		ExpiredGrace:   getInt("EXPIRED_GRACE", 1800),
@@ -93,6 +100,15 @@ func loadConfig(path string) (*Config, error) {
 		if cur != "" {
 			c.Currencies[cur] = true
 		}
+	}
+	for _, a := range strings.Split(get("DEMO_AMOUNTS", "0.5,1"), ",") {
+		a = strings.TrimSpace(a)
+		if v, err := parseAmount(a); err == nil && v > 0 {
+			c.DemoAmounts = append(c.DemoAmounts, fmtAmount(v))
+		}
+	}
+	if c.ReceiveLink != "" && !strings.HasPrefix(c.ReceiveLink, "https://") {
+		return nil, errors.New("RECEIVE_LINK 须为 https:// 链接（币安收款二维码解码内容）")
 	}
 	if len(c.APIAuthKey) < 16 {
 		return nil, errors.New("API_AUTH_KEY 未设置或过短（≥16 字符，可用 ./bpaygate -gen-key 生成）")
@@ -118,4 +134,12 @@ func loadConfig(path string) (*Config, error) {
 		}
 	}
 	return c, nil
+}
+
+func isTrue(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

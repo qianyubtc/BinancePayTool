@@ -1,0 +1,5 @@
+# 方案 A：Caddy 反代 + 自动 HTTPS（Cloudflare DNS 只解析、或代理模式下 SSL 设为 Full (strict)）
+pay.example.com {
+    reverse_proxy 127.0.0.1:8080
+    encode gzip
+}

@@ -1,0 +1,12 @@
+# 方案 B（推荐）：Cloudflare Tunnel，不开公网端口、不管证书
+#   cloudflared tunnel login
+#   cloudflared tunnel create bpaygate
+#   cloudflared tunnel route dns bpaygate pay.example.com
+#   sudo cp deploy/cloudflared.yml /etc/cloudflared/config.yml   # 改 tunnel 与 credentials-file
+#   sudo cloudflared service install && sudo systemctl enable --now cloudflared
+tunnel: <TUNNEL-ID>
+credentials-file: /root/.cloudflared/<TUNNEL-ID>.json
+ingress:
+  - hostname: pay.example.com
+    service: http://127.0.0.1:8080
+  - service: http_status:404

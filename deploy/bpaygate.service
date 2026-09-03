@@ -1,0 +1,22 @@
+# systemd 单元：sudo cp deploy/bpaygate.service /etc/systemd/system/ && sudo systemctl enable --now bpaygate
+[Unit]
+Description=BinancePayTool gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=bpg
+Group=bpg
+WorkingDirectory=/opt/bpaygate
+ExecStart=/opt/bpaygate/bpaygate -config /opt/bpaygate/config.env
+Restart=always
+RestartSec=3
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/bpaygate
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
