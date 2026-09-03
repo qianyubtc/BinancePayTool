@@ -27,12 +27,27 @@ ul{margin:6px 0 0;padding-left:18px;font-size:14px}li{margin:4px 0}
 .mode{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px}
 .mode.on{border-color:var(--brand);background:rgba(240,185,11,.12)}
 .mode input{margin-top:3px}.mode b{display:block;font-size:14px}.mode span{color:var(--muted)}
+.check{width:76px;height:76px;border-radius:50%;background:var(--ok);color:#fff;font-size:46px;line-height:76px;margin:4px auto 14px;animation:pop .45s ease-out}
+@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.big{font-size:28px;font-weight:700}
+.btn{display:inline-block;margin-top:14px;padding:11px 18px;border-radius:10px;background:var(--brand);color:#111;font-weight:700;text-decoration:none}
 .warn{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.35);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px}
 code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-size:13px}
 </style>
 </head>
 <body>
 <div class="wrap">
+  {{if .Done}}
+  <div class="card" style="text-align:center">
+    {{if eq .DoneStatus "paid"}}
+      <div class="check">✓</div>
+      <h2 style="color:var(--ok);font-size:26px;margin:0 0 6px">支付成功</h2>
+      <div class="big">{{.DoneAmount}} <span style="font-size:15px">{{.DoneCur}}</span></div>
+      <p class="muted" style="margin:8px 0 0">本笔由「<b>{{.DoneBy}}</b>」确认到账，接入方此刻已收到签名回调。</p>
+    {{else}}
+      <h2 style="margin:0 0 6px">订单状态：{{.DoneStatus}}</h2>
+      <p class="muted">未确认到账。若已付款，可回到收银页回填币安订单编号。</p>
+    {{end}}
   <div class="card">
     <h1>BinancePayTool 体验</h1>
     <div class="muted">用普通币安个人账户收 Binance Pay 转账的开源收款网关 · <a href="{{.Repo}}" target="_blank" rel="noopener">GitHub</a> · v{{.Version}}</div>
@@ -51,16 +66,7 @@ code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-siz
     <div class="muted" style="margin-top:8px">付完款后收银页几秒内自动变绿，这就是网关在用币安官方只读接口对账。</div>
   </div>
 
-  {{if .Done}}
-  <div class="card">
-    <h2>体验结果</h2>
-    {{if eq .DoneStatus "paid"}}
-      <p class="ok"><b>支付成功 ✓</b> 实收 {{.DoneAmount}} {{.DoneCur}}</p>
-      <p>本笔由「<b>{{.DoneBy}}</b>」确认到账。</p>
-    {{else}}
-      <p>订单状态：<b>{{.DoneStatus}}</b></p>
-    {{end}}
-    <a href="/demo">再来一次</a>
+    <a class="btn" href="/demo">再体验一次</a>
   </div>
   {{end}}
 

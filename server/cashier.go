@@ -87,10 +87,15 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", 500)
 		return
 	}
+	actual := ""
+	if o.ActualAmount > 0 {
+		actual = fmtAmount(o.ActualAmount)
+	}
 	writeJSON(w, 200, map[string]any{
-		"status":   o.Status,
-		"paid_at":  o.PaidAt,
-		"redirect": a.redirectURL(o),
+		"status":        o.Status,
+		"paid_at":       o.PaidAt,
+		"actual_amount": actual,
+		"redirect":      a.redirectURL(o),
 	})
 }
 

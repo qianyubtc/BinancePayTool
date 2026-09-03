@@ -209,6 +209,24 @@ func TestAmountMatchFlow(t *testing.T) {
 	if signCallback(testSecret, ts, nonce, cb.body) != sig {
 		t.Fatal("回调签名校验失败")
 	}
+	// 已支付订单：状态接口返回实收金额，收银页含整页成功态
+	token := d["pay_url"].(string)[len("http://gw.test/pay/"):]
+	resp, err := http.Get(e.srv.URL + "/pay/" + token + "/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st map[string]any
+	json.NewDecoder(resp.Body).Decode(&st)
+	resp.Body.Close()
+	if st["status"] != "paid" || st["actual_amount"] != payAmount {
+		t.Fatalf("状态接口应带实收金额: %v", st)
+	}
+	resp, _ = http.Get(e.srv.URL + "/pay/" + token)
+	html, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(html), `id="successCard"`) || !strings.Contains(string(html), "支付成功") {
+		t.Fatal("收银页缺少成功态面板")
+	}
 }
 
 // ② 备注码匹配（金额不唯一也能确认）

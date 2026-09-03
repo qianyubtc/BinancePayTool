@@ -35,11 +35,26 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 .panel{display:none}.panel.on{display:block}
 .appbtn{display:block;width:100%;text-align:center;padding:14px;border-radius:12px;background:var(--brand);color:#111;font-weight:700;font-size:16px;text-decoration:none;margin:8px 0 4px}
 .steps{font-size:13px;color:var(--muted);line-height:1.9;margin:6px 0 0;padding-left:18px}
+.success{display:none;text-align:center;padding:30px 20px 26px}
+.success.on{display:block}
+.check{width:76px;height:76px;border-radius:50%;background:var(--ok);color:#fff;font-size:46px;line-height:76px;margin:0 auto 14px;animation:pop .45s ease-out}
+@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.success h2{margin:0 0 4px;font-size:26px;color:var(--ok)}
+.success .amt{font-size:30px;margin:8px 0 2px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card center">
+  <div class="card success" id="successCard">
+    <div class="check">✓</div>
+    <h2>支付成功</h2>
+    <div class="amt" id="succAmt">{{.ShowAmount}}<small>{{.Currency}}</small></div>
+    <div class="muted">订单已确认到账</div>
+    <div class="muted" id="redirectMsg" style="margin-top:12px"></div>
+    <div id="redirectBtn" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card center pc">
     <h1>请用币安 App「支付」转账</h1>
     <div class="muted">Binance Pay · 即时到账 · 0 手续费</div>
     <div class="amt" id="payAmount">{{.ShowAmount}}<small>{{.Currency}}</small></div>
@@ -49,7 +64,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     <button class="copy" onclick="cp('{{.ShowAmount}}',this)">复制金额</button>
   </div>
 
-  <div class="card">
+  <div class="card pc">
     <div class="tabs">
       {{if .HasQR}}<div class="tab" data-t="scan">扫码支付</div>{{end}}
       {{if .AppLink}}<div class="tab" data-t="app">打开币安 App</div>{{end}}
@@ -87,12 +102,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     </div>
   </div>
 
-  <div class="card">
+  <div class="card pc">
     <div class="row"><span class="k">剩余时间</span><span class="v" id="cd">--:--</span></div>
     <div class="row"><span class="k">状态</span><span class="v status" id="st"><span class="dot"></span><span id="stTxt">等待支付</span></span></div>
   </div>
 
-  <div class="card">
+  <div class="card pc">
     <details{{if eq .Mode "claim"}} open{{end}}>
       <summary>{{if eq .Mode "claim"}}付完款后在这里回填币安订单编号{{else}}已付款但长时间未确认？回填币安订单编号{{end}}</summary>
       <p class="muted" style="margin:10px 0 6px">币安 App → 支付 → 交易记录 → 点开这笔转账，复制「订单编号」（18 位数字）粘贴到此处：</p>
@@ -110,7 +125,16 @@ showTab(isMobile?(hasApp?"app":"manual"):(hasQR?"scan":"manual"));
 function cp(t,btn){navigator.clipboard&&navigator.clipboard.writeText(t).then(function(){var o=btn.textContent;btn.textContent="已复制";setTimeout(function(){btn.textContent=o},1200)})}
 function tick(){var left=Math.max(0,Math.floor((expiresAt-Date.now())/1000));var m=String(Math.floor(left/60)).padStart(2,"0"),s=String(left%60).padStart(2,"0");document.getElementById("cd").textContent=m+":"+s;if(left<=0&&!done){setTxt("已超时，若已付款请回填订单编号","bad")}}
 function setTxt(t,cls){var el=document.getElementById("stTxt");el.textContent=t;el.className=cls||""}
-function onPaid(d){done=true;document.getElementById("st").classList.add("paid");setTxt("支付成功 ✓","good");if(d.redirect){setTimeout(function(){location.href=d.redirect},1500)}}
+function onPaid(d){if(done)return;done=true;document.title="✓ 支付成功";
+ document.getElementById("st").classList.add("paid");setTxt("支付成功 ✓","good");
+ document.querySelectorAll(".pc").forEach(function(c){c.style.display="none"});
+ document.getElementById("successCard").classList.add("on");
+ if(d.actual_amount){var a=document.getElementById("succAmt");a.textContent=d.actual_amount;var s=document.createElement("small");s.textContent={{.Currency}};a.appendChild(s)}
+ if(navigator.vibrate){try{navigator.vibrate([80,40,80])}catch(e){}}
+ var m=document.getElementById("redirectMsg");
+ if(d.redirect){var b=document.createElement("a");b.className="appbtn";b.href=d.redirect;b.textContent="立即返回商家";document.getElementById("redirectBtn").appendChild(b);
+  var n=3;m.textContent=n+" 秒后自动返回商家…";var tm=setInterval(function(){n--;if(n<=0){clearInterval(tm);location.href=d.redirect}else{m.textContent=n+" 秒后自动返回商家…"}},1000)}
+ else{m.textContent="您可以关闭此页面"}}
 function poll(){if(done)return;fetch("/pay/"+token+"/status",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
  if(d.status==="paid"){onPaid(d)}
  else if(d.status==="underpaid"){done=true;setTxt("实付金额不足，请联系商家处理","bad")}
