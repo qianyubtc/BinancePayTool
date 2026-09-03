@@ -169,3 +169,39 @@ func TestDemoConfirmModes(t *testing.T) {
 		t.Fatal("非法 mode 应回落到 amount")
 	}
 }
+
+// 体验首页必须显示说明卡（曾因模板 {{if .Done}} 包裹错误而整体消失）；结果页须含返回入口
+func TestDemoIntroAndDonePage(t *testing.T) {
+	e := newDemoEnv(t)
+	resp, _ := http.Get(e.srv.URL + "/demo")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	for _, want := range []string{"<h1>BinancePayTool 体验</h1>", "三种付款方式", "三种到账确认方式", "去支付"} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("体验首页缺少 %q", want)
+		}
+	}
+	if strings.Contains(string(body), "再体验一次") {
+		t.Fatal("首页不应出现结果卡")
+	}
+	d := e.create("M-done-1", "USDT", "5", "")
+	resp, _ = http.Get(e.srv.URL + "/demo/done?order_id=" + d["order_id"].(string))
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	for _, want := range []string{"订单状态：pending", "再体验一次", "<h1>BinancePayTool 体验</h1>"} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("结果页缺少 %q", want)
+		}
+	}
+	// 体验订单的收银页有返回入口
+	noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	form := url.Values{"amount": {"0.5"}, "currency": {"USDT"}}
+	resp, _ = noRedirect.Post(e.srv.URL+"/demo/order", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
+	loc := resp.Header.Get("Location")
+	resp, _ = http.Get(e.srv.URL + loc)
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), "返回体验首页") {
+		t.Fatal("体验订单收银页缺少返回入口")
+	}
+}

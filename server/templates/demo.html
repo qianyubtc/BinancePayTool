@@ -48,6 +48,10 @@ code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-siz
       <h2 style="margin:0 0 6px">订单状态：{{.DoneStatus}}</h2>
       <p class="muted">未确认到账。若已付款，可回到收银页回填币安订单编号。</p>
     {{end}}
+    <a class="btn" href="/demo">再体验一次</a>
+  </div>
+  {{end}}
+
   <div class="card">
     <h1>BinancePayTool 体验</h1>
     <div class="muted">用普通币安个人账户收 Binance Pay 转账的开源收款网关 · <a href="{{.Repo}}" target="_blank" rel="noopener">GitHub</a> · v{{.Version}}</div>
@@ -65,10 +69,6 @@ code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-siz
     </ul>
     <div class="muted" style="margin-top:8px">付完款后收银页几秒内自动变绿，这就是网关在用币安官方只读接口对账。</div>
   </div>
-
-    <a class="btn" href="/demo">再体验一次</a>
-  </div>
-  {{end}}
 
   <div class="card">
     <h2>选择体验金额</h2>

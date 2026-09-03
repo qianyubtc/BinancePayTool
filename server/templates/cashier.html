@@ -116,6 +116,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       <div id="claimMsg"></div>
     </details>
   </div>
+  {{if .BackURL}}<div class="center muted pc" style="margin-top:6px"><a href="{{.BackURL}}" style="color:inherit">← 返回体验首页</a></div>{{end}}
 </div>
 <script>
 var expiresAt={{.ExpiresAt}}, token={{.Token}}, isMobile={{.IsMobile}}, hasApp={{if .AppLink}}true{{else}}false{{end}}, hasQR={{if .HasQR}}true{{else}}false{{end}}, done=false;

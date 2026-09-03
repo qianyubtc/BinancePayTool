@@ -45,8 +45,13 @@ func (a *App) handleCashier(w http.ResponseWriter, r *http.Request) {
 	case "claim":
 		noteLabel, noteHint = "转账备注（本次不填）", template.HTML("<b>不要填备注</b>，付完后在下方回填订单编号")
 	}
+	backURL := ""
+	if a.cfg.DemoEnabled && strings.HasPrefix(o.MerchantOrderID, "DEMO-") {
+		backURL = "/demo"
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	cashierTpl.Execute(w, map[string]any{
+		"BackURL":    backURL,
 		"Mode":       mode,
 		"ShowAmount": showAmount,
 		"NoteLabel":  noteLabel,
