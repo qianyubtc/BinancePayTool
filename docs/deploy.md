@@ -20,7 +20,8 @@ curl -s https://api.binance.com/api/v3/ping && echo OK
 sudo useradd -r -s /usr/sbin/nologin bpg
 sudo mkdir -p /opt/bpaygate && sudo chown bpg:bpg /opt/bpaygate
 # 方式一：本机交叉编译后上传
-#   cd server && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bpaygate-linux .
+#   cd server && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o bpaygate-linux .
+#   （-trimpath 与 -buildvcs=false 使构建可复现：同一提交在任何机器上得到相同哈希，便于核对线上版本）
 #   scp bpaygate-linux vps:/opt/bpaygate/bpaygate
 # 方式二：VPS 上有 Go 直接 git clone 后 go build
 ```
@@ -70,3 +71,4 @@ sudo journalctl -u bpaygate -f      # 看到「监听 0.0.0.0:8080」即正常
 ## 6. 升级
 
 替换二进制后 `sudo systemctl restart bpaygate`。数据库 schema 自动迁移（`CREATE IF NOT EXISTS`）。
+核对线上版本：本机从目标提交用上面的可复现命令构建，`sha256sum` 与服务器上 `/opt/bpaygate/bpaygate` 一致即为同一份代码。
