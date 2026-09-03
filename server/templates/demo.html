@@ -42,7 +42,7 @@ code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-siz
       <li><b>手机端</b>：一键唤起币安 App{{if not .HasApp}}（本站暂未配置）{{end}}</li>
       <li><b>兜底</b>：按 UID 手动转账</li>
     </ul>
-    <div class="muted" style="margin-top:10px"><b>三种到账确认方式</b>（网关同时生效，下单时可选一种来体验）</div>
+    <div class="muted" style="margin-top:10px"><b>三种到账确认方式</b>（网关同时生效，默认流程无需选择）</div>
     <ul>
       <li><b>唯一金额</b>：每单分配唯一尾数，付款金额即订单指纹，零动作自动确认</li>
       <li><b>备注码</b>：金额不精确也行，备注带上 6 位码即可确认</li>
@@ -72,13 +72,15 @@ code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-siz
       </div>
       <input type="hidden" name="amount" id="amount" value="{{index .Amounts 0}}">
       <label>币种 &nbsp;<select name="currency">{{range .Currencies}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
-      <h2 style="margin-top:16px">选择要体验的到账确认方式</h2>
-      <div class="modes">
-        <label class="mode on"><input type="radio" name="mode" value="amount" checked><div><b>唯一金额（默认）</b><span>按收银页金额一分不差支付，不填备注，付完自动确认</span></div></label>
-        <label class="mode"><input type="radio" name="mode" value="note"><div><b>备注码</b><span>金额 ≥ 基础金额即可，备注必须填 6 位码，靠备注确认</span></div></label>
-        <label class="mode"><input type="radio" name="mode" value="claim"><div><b>回填订单编号</b><span>付基础金额、不填备注，付完在收银页粘贴币安订单编号核验</span></div></label>
-      </div>
       <button type="submit">去支付</button>
+      <details style="margin-top:14px">
+        <summary class="muted" style="cursor:pointer">进阶：想专门体验「备注码」或「回填订单编号」这两种确认方式？展开选择（默认即生产流程）</summary>
+        <div class="modes" style="margin-top:10px">
+          <label class="mode on"><input type="radio" name="mode" value="amount" checked><div><b>唯一金额（默认，生产流程）</b><span>按收银页金额一分不差支付，备注可选，付完自动确认；一直没到可回填订单编号兜底</span></div></label>
+          <label class="mode"><input type="radio" name="mode" value="note"><div><b>备注码</b><span>金额 ≥ 基础金额即可，备注必须填 6 位码，靠备注确认</span></div></label>
+          <label class="mode"><input type="radio" name="mode" value="claim"><div><b>回填订单编号</b><span>付基础金额、不填备注，付完在收银页粘贴币安订单编号核验</span></div></label>
+        </div>
+      </details>
       {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
     </form>
     <div class="warn">这是<b>真实转账</b>，付出的加密货币会进入站长账户，仅用于演示，请选择最小金额体验。</div>
