@@ -19,28 +19,40 @@ const testSecret = "test-secret-0123456789abcdef"
 
 // ---- mock 币安 ----
 
+// mock 币安按 API Key 区分账号：不同 Key 看到各自的流水；Key 为 bad 时返回 -2015。
 type mockBinance struct {
 	mu   sync.Mutex
-	txns []payTxn
+	txns map[string][]payTxn
 	srv  *httptest.Server
 }
 
 func newMockBinance() *mockBinance {
-	m := &mockBinance{}
+	m := &mockBinance{txns: map[string][]payTxn{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/sapi/v1/pay/transactions", func(w http.ResponseWriter, r *http.Request) {
+		key := r.Header.Get("X-MBX-APIKEY")
+		if key == "bad" {
+			writeJSON(w, 401, map[string]any{"code": -2015, "msg": "Invalid API-key, IP, or permissions for action."})
+			return
+		}
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		writeJSON(w, 200, map[string]any{"code": "000000", "message": "success", "data": m.txns, "success": true})
+		list := m.txns[key]
+		if list == nil {
+			list = []payTxn{}
+		}
+		writeJSON(w, 200, map[string]any{"code": "000000", "message": "success", "data": list, "success": true})
 	})
 	m.srv = httptest.NewServer(mux)
 	return m
 }
 
-func (m *mockBinance) inject(t payTxn) {
+func (m *mockBinance) inject(t payTxn) { m.injectFor("k", t) }
+
+func (m *mockBinance) injectFor(key string, t payTxn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.txns = append(m.txns, t)
+	m.txns[key] = append(m.txns[key], t)
 }
 
 // ---- 商户回调接收器 ----
@@ -378,4 +390,128 @@ func TestCashierAbsolutePaths(t *testing.T) {
 		t.Fatalf("状态接口不可达: %v %d", err, resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+// 多账号：动态添加收款账号，订单按账号隔离匹配，收银页按账号展示，回填也按账号找流水
+func TestMultiAccount(t *testing.T) {
+	e := newEnv(t)
+	post := func(path string, v map[string]any) (int, map[string]any) {
+		b, _ := json.Marshal(v)
+		return e.doSigned("POST", path, b)
+	}
+	// 校验失败的 Key / 非法 uid
+	if code, out := post("/api/v1/accounts", map[string]any{"api_key": "bad", "api_secret": "s", "uid": "1"}); code != 400 || out["code"] != "ERR_BINANCE" {
+		t.Fatalf("坏 Key 应 ERR_BINANCE: %d %v", code, out)
+	}
+	if code, _ := post("/api/v1/accounts", map[string]any{"api_key": "k2", "api_secret": "s2", "uid": "abc"}); code != 400 {
+		t.Fatalf("非法 uid 应 400: %d", code)
+	}
+	// 添加成功 + 幂等更新
+	const k2 = "k2-0123456789abcdef"
+	code, out := post("/api/v1/accounts", map[string]any{"label": "sub", "api_key": k2, "api_secret": "s2", "uid": "90000002", "receive_link": "https://app.binance.com/uni-qr/SUB"})
+	if code != 200 {
+		t.Fatalf("添加账号失败: %d %v", code, out)
+	}
+	acc := out["data"].(map[string]any)
+	accID := acc["account_id"].(string)
+	if acc["uid"] != "90000002" || acc["status"] != "active" || acc["api_key_masked"] != "k2-0…cdef" {
+		t.Fatalf("账号信息错误: %v", acc)
+	}
+	code, out = post("/api/v1/accounts", map[string]any{"label": "sub2", "api_key": k2, "api_secret": "s2", "uid": "90000002", "receive_link": "https://app.binance.com/uni-qr/SUB"})
+	if code != 200 || out["data"].(map[string]any)["account_id"] != accID || out["data"].(map[string]any)["label"] != "sub2" {
+		t.Fatalf("同 Key 应幂等更新: %d %v", code, out)
+	}
+	var enc string
+	if err := e.app.st.db.QueryRow(`SELECT api_secret FROM accounts WHERE id=?`, accID).Scan(&enc); err != nil || !strings.HasPrefix(enc, "v1:") || strings.Contains(enc, "s2") {
+		t.Fatalf("密钥应加密落库: %q %v", enc, err)
+	}
+	// 无效 account_id 下单
+	if code, _ := post("/api/v1/orders", map[string]any{"merchant_order_id": "M-acc-bad", "currency": "USDT", "amount": "5", "account_id": "nope"}); code != 400 {
+		t.Fatalf("无效账号下单应 400: %d", code)
+	}
+	// 默认账号一单（让默认账号也在轮询），子账号一单
+	e.create("M-acc-def", "USDT", "7", "")
+	code, out = post("/api/v1/orders", map[string]any{"merchant_order_id": "M-acc-1", "currency": "USDT", "amount": "5", "account_id": accID, "callback_url": e.cbS.URL})
+	if code != 200 {
+		t.Fatalf("子账号下单失败: %d %v", code, out)
+	}
+	d := out["data"].(map[string]any)
+	if d["account_id"] != accID || d["receive_uid"] != "90000002" || d["receive_link"] != "https://app.binance.com/uni-qr/SUB" {
+		t.Fatalf("订单应带子账号信息: %v", d)
+	}
+	oid, payAmount := d["order_id"].(string), d["pay_amount"].(string)
+	token := d["pay_url"].(string)[len("http://gw.test/pay/"):]
+	resp, err := http.Get(e.srv.URL + "/pay/" + token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(html), "90000002") || !strings.Contains(string(html), "扫码支付") {
+		i := strings.Index(string(html), "收款人币安 UID")
+		seg := ""
+		if i >= 0 {
+			seg = string(html)[i : i+160]
+		}
+		t.Fatalf("收银页应展示子账号 UID 与扫码: HTTP %d uid=%v qr=%v seg=%q", resp.StatusCode, strings.Contains(string(html), "90000002"), strings.Contains(string(html), "扫码支付"), seg)
+	}
+	if resp, err = http.Get(e.srv.URL + "/pay/" + token + "/qr"); err != nil || resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/png" {
+		t.Fatalf("子账号二维码不可用: %v %d", err, resp.StatusCode)
+	}
+	resp.Body.Close()
+	// 隔离：默认账号收到同金额流水，不应核销子账号订单
+	e.mock.inject(mkTxn(nextBinanceOrderID(), payAmount, "USDT", ""))
+	time.Sleep(2500 * time.Millisecond)
+	if _, out := e.doSigned("GET", "/api/v1/orders/"+oid, nil); out["data"].(map[string]any)["status"] != "pending" {
+		t.Fatalf("默认账号流水不应核销子账号订单: %v", out)
+	}
+	// 子账号收到 → paid，回调带 account_id
+	bid := nextBinanceOrderID()
+	e.mock.injectFor(k2, mkTxn(bid, payAmount, "USDT", ""))
+	got := e.waitStatus(oid, "paid", 10*time.Second)
+	if got["binance_order_id"] != bid || got["matched_by"] != "amount" {
+		t.Fatalf("子账号匹配信息错误: %v", got)
+	}
+	cb := e.waitCallback(10 * time.Second)
+	var payload map[string]any
+	json.Unmarshal(cb.body, &payload)
+	if payload["account_id"] != accID || payload["event"] != "paid" {
+		t.Fatalf("回调应带 account_id: %v", payload)
+	}
+	if _, out := e.doSigned("GET", "/api/v1/accounts/"+accID, nil); out["data"].(map[string]any)["last_ok"].(float64) <= 0 {
+		t.Fatalf("轮询成功后 last_ok 应更新: %v", out)
+	}
+	// 回填：子账号第二单，金额=基础值无备注 → 收银页回填订单编号 → 在子账号流水里找到
+	code, out = post("/api/v1/orders", map[string]any{"merchant_order_id": "M-acc-2", "currency": "USDT", "amount": "9", "account_id": accID})
+	d2 := out["data"].(map[string]any)
+	bid2 := nextBinanceOrderID()
+	e.mock.injectFor(k2, mkTxn(bid2, "9", "USDT", ""))
+	tok2 := d2["pay_url"].(string)[len("http://gw.test/pay/"):]
+	cbody, _ := json.Marshal(map[string]string{"binance_order_id": bid2})
+	resp, err = http.Post(e.srv.URL+"/pay/"+tok2+"/claim", "application/json", bytes.NewReader(cbody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cres map[string]any
+	json.NewDecoder(resp.Body).Decode(&cres)
+	resp.Body.Close()
+	if cres["data"].(map[string]any)["code"] != "OK" {
+		t.Fatalf("子账号回填失败: %v", cres)
+	}
+	// 停用 / 启用 / 默认账号保护
+	if code, out := post("/api/v1/accounts/"+accID+"/disable", nil); code != 200 || out["data"].(map[string]any)["status"] != "disabled" {
+		t.Fatalf("停用失败: %d %v", code, out)
+	}
+	if code, _ := post("/api/v1/orders", map[string]any{"merchant_order_id": "M-acc-3", "currency": "USDT", "amount": "5", "account_id": accID}); code != 400 {
+		t.Fatalf("停用账号下单应 400: %d", code)
+	}
+	if code, _ := post("/api/v1/accounts/"+accID+"/enable", nil); code != 200 {
+		t.Fatalf("启用失败: %d", code)
+	}
+	if code, _ := post("/api/v1/accounts/default/disable", nil); code != 400 {
+		t.Fatalf("默认账号不可停用: %d", code)
+	}
+	if code, out := post("/api/v1/accounts/default/verify", nil); code != 200 || out["data"].(map[string]any)["uid"] != "90000001" {
+		t.Fatalf("默认账号校验: %d %v", code, out)
+	}
 }

@@ -35,12 +35,11 @@ type binanceClient struct {
 }
 
 func newBinanceClient(cfg *Config) *binanceClient {
-	return &binanceClient{
-		base:   cfg.BinanceAPIBase,
-		key:    cfg.BinanceKey,
-		secret: cfg.BinanceSecret,
-		hc:     &http.Client{Timeout: 15 * time.Second},
-	}
+	return newBinanceClientFor(cfg.BinanceAPIBase, cfg.BinanceKey, cfg.BinanceSecret)
+}
+
+func newBinanceClientFor(base, key, secret string) *binanceClient {
+	return &binanceClient{base: base, key: key, secret: secret, hc: &http.Client{Timeout: 15 * time.Second}}
 }
 
 // PayTransactions 拉取 Pay 流水（签名 GET）。limit 上限 100，接口权重 3000/UID。

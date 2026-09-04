@@ -52,6 +52,7 @@ func callbackPayload(o *Order, event string) ([]byte, error) {
 	p := map[string]any{
 		"event":             event,
 		"order_id":          o.ID,
+		"account_id":        o.AccountID,
 		"merchant_order_id": o.MerchantOrderID,
 		"status":            o.Status,
 		"currency":          o.Currency,

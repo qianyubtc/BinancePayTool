@@ -59,8 +59,11 @@ class BPayGate:
     # ---- API ----
 
     def create_order(self, merchant_order_id: str, amount: str, currency: str = "USDT",
-                     callback_url: str = None, return_url: str = None, timeout: int = None) -> dict:
+                     callback_url: str = None, return_url: str = None, timeout: int = None,
+                     account_id: str = None) -> dict:
         payload = {"merchant_order_id": merchant_order_id, "amount": str(amount), "currency": currency}
+        if account_id:
+            payload["account_id"] = account_id  # 多账号模式：指定收款账号
         if callback_url:
             payload["callback_url"] = callback_url
         if return_url:
@@ -77,6 +80,29 @@ class BPayGate:
 
     def close_order(self, order_id: str) -> dict:
         return self._request("POST", "/api/v1/orders/" + order_id + "/close", {})
+
+    # ---- 收款账号（多账号模式，docs/protocol.md §2.6）----
+
+    def create_account(self, api_key: str, api_secret: str, uid: str, label: str = "",
+                       receive_link: str = None, receive_email: str = None) -> dict:
+        payload = {"api_key": api_key, "api_secret": api_secret, "uid": str(uid), "label": label}
+        if receive_link:
+            payload["receive_link"] = receive_link
+        if receive_email:
+            payload["receive_email"] = receive_email
+        return self._request("POST", "/api/v1/accounts", payload)
+
+    def get_account(self, account_id: str) -> dict:
+        return self._request("GET", "/api/v1/accounts/" + account_id)
+
+    def verify_account(self, account_id: str) -> dict:
+        return self._request("POST", "/api/v1/accounts/" + account_id + "/verify", {})
+
+    def disable_account(self, account_id: str) -> dict:
+        return self._request("POST", "/api/v1/accounts/" + account_id + "/disable", {})
+
+    def enable_account(self, account_id: str) -> dict:
+        return self._request("POST", "/api/v1/accounts/" + account_id + "/enable", {})
 
     # ---- 回调验签 ----
 

@@ -38,6 +38,7 @@ func New(baseURL, secret string) *Client {
 
 type Order struct {
 	OrderID         string `json:"order_id"`
+	AccountID       string `json:"account_id"`
 	MerchantOrderID string `json:"merchant_order_id"`
 	Status          string `json:"status"`
 	Currency        string `json:"currency"`
@@ -47,6 +48,8 @@ type Order struct {
 	NoteCode        string `json:"note_code"`
 	PayURL          string `json:"pay_url"`
 	ReceiveUID      string `json:"receive_uid"`
+	ReceiveLink     string `json:"receive_link"` // 收款账号的币安收款链接（可自建收银页/二维码/唤起 App）
+	ReceiveEmail    string `json:"receive_email"`
 	MatchedBy       string `json:"matched_by"`
 	BinanceOrderID  string `json:"binance_order_id"`
 	BinanceTxnID    string `json:"binance_txn_id"`
@@ -60,6 +63,7 @@ type Order struct {
 type Callback struct {
 	Event           string `json:"event"` // paid | underpaid | expired
 	OrderID         string `json:"order_id"`
+	AccountID       string `json:"account_id"`
 	MerchantOrderID string `json:"merchant_order_id"`
 	Status          string `json:"status"`
 	Currency        string `json:"currency"`
@@ -84,6 +88,7 @@ type APIError struct {
 func (e *APIError) Error() string { return e.Code + ": " + e.Message }
 
 type CreateOrderReq struct {
+	AccountID       string `json:"account_id,omitempty"` // 多账号模式：收款账号 ID，缺省为网关默认账号
 	MerchantOrderID string `json:"merchant_order_id"`
 	Currency        string `json:"currency"`
 	Amount          string `json:"amount"`
@@ -108,7 +113,76 @@ func (c *Client) CloseOrder(orderID string) (*Order, error) {
 	return c.do("POST", "/api/v1/orders/"+orderID+"/close", struct{}{})
 }
 
+// Account 网关里的一个收款账号（多账号模式，docs/protocol.md §2.6）。
+type Account struct {
+	AccountID    string `json:"account_id"`
+	Label        string `json:"label"`
+	APIKeyMasked string `json:"api_key_masked"`
+	UID          string `json:"uid"`
+	ReceiveLink  string `json:"receive_link"`
+	ReceiveEmail string `json:"receive_email"`
+	Status       string `json:"status"` // active | disabled
+	LastOK       int64  `json:"last_ok"`
+	LastErr      string `json:"last_err"`
+	CreatedAt    int64  `json:"created_at"`
+}
+
+type CreateAccountReq struct {
+	Label        string `json:"label,omitempty"`
+	APIKey       string `json:"api_key"`    // 该收款账户的币安只读 API Key
+	APISecret    string `json:"api_secret"` // 对应 Secret
+	UID          string `json:"uid"`        // 该账户的币安 UID
+	ReceiveLink  string `json:"receive_link,omitempty"`
+	ReceiveEmail string `json:"receive_email,omitempty"`
+}
+
+// CreateAccount 添加（或按 api_key 更新）一个收款账号；网关会先用该 Key 试拉流水校验。
+func (c *Client) CreateAccount(req CreateAccountReq) (*Account, error) {
+	return c.doAccount("POST", "/api/v1/accounts", req)
+}
+
+func (c *Client) GetAccount(id string) (*Account, error) {
+	return c.doAccount("GET", "/api/v1/accounts/"+id, nil)
+}
+
+// VerifyAccount 立即用该账号的 Key 试拉一次流水，失败返回 ERR_BINANCE。
+func (c *Client) VerifyAccount(id string) (*Account, error) {
+	return c.doAccount("POST", "/api/v1/accounts/"+id+"/verify", struct{}{})
+}
+
+func (c *Client) DisableAccount(id string) (*Account, error) {
+	return c.doAccount("POST", "/api/v1/accounts/"+id+"/disable", struct{}{})
+}
+
+func (c *Client) EnableAccount(id string) (*Account, error) {
+	return c.doAccount("POST", "/api/v1/accounts/"+id+"/enable", struct{}{})
+}
+
+func (c *Client) doAccount(method, path string, payload any) (*Account, error) {
+	raw, err := c.call(method, path, payload)
+	if err != nil {
+		return nil, err
+	}
+	var a Account
+	if err := json.Unmarshal(raw, &a); err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 func (c *Client) do(method, path string, payload any) (*Order, error) {
+	raw, err := c.call(method, path, payload)
+	if err != nil {
+		return nil, err
+	}
+	var o Order
+	if err := json.Unmarshal(raw, &o); err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+func (c *Client) call(method, path string, payload any) (json.RawMessage, error) {
 	var body []byte
 	if payload != nil {
 		b, err := json.Marshal(payload)
@@ -147,11 +221,7 @@ func (c *Client) do(method, path string, payload any) (*Order, error) {
 	if env.Code != "OK" {
 		return nil, &APIError{Code: env.Code, Message: env.Message, HTTPStatus: resp.StatusCode}
 	}
-	var o Order
-	if err := json.Unmarshal(env.Data, &o); err != nil {
-		return nil, err
-	}
-	return &o, nil
+	return env.Data, nil
 }
 
 // VerifyCallback 校验网关回调签名并解析。商户须按 MerchantOrderID 幂等处理。

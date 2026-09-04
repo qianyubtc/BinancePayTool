@@ -113,7 +113,8 @@ func randString(alphabet string, n int) string {
 	return string(out)
 }
 
-func newOrderID() string  { return "o" + randString(idAlphabet, 25) }
-func newToken() string    { return randString(idAlphabet, 26) }
-func newNoteCode() string { return randString(codeAlphabet, 6) }
-func newNonce() string    { return randString(idAlphabet, 24) }
+func newOrderID() string   { return "o" + randString(idAlphabet, 25) }
+func newAccountID() string { return "a" + randString(idAlphabet, 20) }
+func newToken() string     { return randString(idAlphabet, 26) }
+func newNoteCode() string  { return randString(codeAlphabet, 6) }
+func newNonce() string     { return randString(idAlphabet, 24) }

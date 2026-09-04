@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 //go:embed templates/cashier.html
@@ -31,7 +33,12 @@ func (a *App) handleCashier(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", 500)
 		return
 	}
-	hasQR := a.cfg.QRImage != "" || a.qrPNG != nil
+	acc, err := a.accountFor(o.AccountID)
+	if err != nil {
+		http.Error(w, "internal error", 500)
+		return
+	}
+	hasQR := acc.ReceiveLink != "" || (o.AccountID == defaultAccountID && (a.cfg.QRImage != "" || a.qrPNG != nil))
 	// mode 仅用于体验站引导：note/claim 模式下引导付基础金额，让另外两种匹配方式有机会命中
 	mode := demoMode(r.URL.Query().Get("mode"))
 	showAmount := fmtAmount(o.PayAmount)
@@ -58,10 +65,10 @@ func (a *App) handleCashier(w http.ResponseWriter, r *http.Request) {
 		"NoteHint":   noteHint,
 		"PayAmount":  fmtAmount(o.PayAmount),
 		"Currency":   o.Currency,
-		"UID":        a.cfg.BinanceUID,
-		"Email":      a.cfg.ReceiveEmail,
+		"UID":        acc.UID,
+		"Email":      acc.ReceiveEmail,
 		"HasQR":      hasQR,
-		"AppLink":    a.cfg.ReceiveLink,
+		"AppLink":    acc.ReceiveLink,
 		"IsMobile":   isMobile(r),
 		"NoteCode":   o.NoteCode,
 		"ExpiresAt":  o.ExpiresAt,
@@ -139,21 +146,46 @@ func (a *App) handleClaim(w http.ResponseWriter, r *http.Request) {
 	ok(w, map[string]any{"code": res.Code, "status": res.Status})
 }
 
-// handleQR 返回收款二维码：优先 QR_IMAGE 文件，否则用 RECEIVE_LINK 服务端生成。
+// handleQR 返回订单所属账号的收款二维码：默认账号优先 QR_IMAGE 文件，否则由收款链接服务端生成。
 func (a *App) handleQR(w http.ResponseWriter, r *http.Request) {
-	if _, err := a.st.OrderByToken(r.PathValue("token")); err != nil {
+	o, err := a.st.OrderByToken(r.PathValue("token"))
+	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	if a.cfg.QRImage != "" {
-		http.ServeFile(w, r, a.cfg.QRImage)
+	var png []byte
+	if o.AccountID == defaultAccountID {
+		if a.cfg.QRImage != "" {
+			http.ServeFile(w, r, a.cfg.QRImage)
+			return
+		}
+		png = a.qrPNG
+	} else if acc, err := a.accountFor(o.AccountID); err == nil && acc.ReceiveLink != "" {
+		png = a.qrFor(acc.ReceiveLink)
+	}
+	if png == nil {
+		http.NotFound(w, r)
 		return
 	}
-	if a.qrPNG != nil {
-		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		w.Write(a.qrPNG)
-		return
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(png)
+}
+
+// qrFor 按收款链接生成二维码并缓存。
+func (a *App) qrFor(link string) []byte {
+	a.qrMu.Lock()
+	defer a.qrMu.Unlock()
+	if png, ok := a.qrCache[link]; ok {
+		return png
 	}
-	http.NotFound(w, r)
+	png, err := qrcode.Encode(link, qrcode.Medium, 360)
+	if err != nil {
+		return nil
+	}
+	if len(a.qrCache) > 500 {
+		a.qrCache = map[string][]byte{}
+	}
+	a.qrCache[link] = png
+	return png
 }

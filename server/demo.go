@@ -77,7 +77,7 @@ func (a *App) handleDemoOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	mode := demoMode(r.FormValue("mode"))
 	base, _ := parseAmount(amount)
-	o, err := a.st.CreateOrder(a.cfg, "DEMO-"+randString(idAlphabet, 12), cur, base, a.cfg.OrderTTL, "", a.cfg.BaseURL+"/demo/done")
+	o, err := a.st.CreateOrder(a.cfg, defaultAccountID, "DEMO-"+randString(idAlphabet, 12), cur, base, a.cfg.OrderTTL, "", a.cfg.BaseURL+"/demo/done")
 	if err != nil {
 		log.Printf("[error] 体验下单失败: %v", err)
 		a.renderDemo(w, map[string]any{"Error": "创建订单失败，请稍后再试"})

@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -19,6 +21,7 @@ var (
 type Order struct {
 	ID              string
 	Token           string
+	AccountID       string // 收款账号，缺省 default（config.env 里的账号）
 	MerchantOrderID string
 	Currency        string
 	BaseAmount      int64
@@ -39,6 +42,21 @@ type Order struct {
 	Overpaid        bool
 }
 
+// Account 动态添加的收款账号（默认账号来自 config.env，不入库）。
+type Account struct {
+	ID           string
+	Label        string
+	APIKey       string
+	APISecret    string // 内存中为明文，库中 AES-GCM 加密
+	UID          string
+	ReceiveLink  string
+	ReceiveEmail string
+	Status       string // active | disabled
+	LastOK       int64
+	LastErr      string
+	CreatedAt    int64
+}
+
 type cbJob struct {
 	ID      int64
 	OrderID string
@@ -47,8 +65,9 @@ type cbJob struct {
 }
 
 type Store struct {
-	db *sql.DB
-	mu sync.Mutex
+	db  *sql.DB
+	mu  sync.Mutex
+	key []byte // 账号密钥加密用，见 secrets.go
 }
 
 const schema = `
@@ -97,7 +116,26 @@ CREATE TABLE IF NOT EXISTS callbacks(
   last_err TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_callbacks_due ON callbacks(done, next_at);
+CREATE TABLE IF NOT EXISTS accounts(
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL DEFAULT '',
+  api_key TEXT NOT NULL UNIQUE,
+  api_secret TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  receive_link TEXT NOT NULL DEFAULT '',
+  receive_email TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  last_ok INTEGER NOT NULL DEFAULT 0,
+  last_err TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
 `
+
+// migrations 给旧库补列；重复执行会因「duplicate column」报错，忽略即可。
+var migrations = []string{
+	`ALTER TABLE orders ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'`,
+	`CREATE INDEX IF NOT EXISTS idx_orders_account ON orders(account_id, status)`,
+}
 
 func openStore(path string) (*Store, error) {
 	db, err := sql.Open("sqlite", path)
@@ -117,6 +155,11 @@ func openStore(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return nil, err
+		}
+	}
 	return &Store{db: db}, nil
 }
 
@@ -124,7 +167,7 @@ func (s *Store) Close() error { return s.db.Close() }
 
 const orderCols = `id,token,merchant_order_id,currency,base_amount,pay_amount,COALESCE(actual_amount,0),status,note_code,
 COALESCE(binance_order_id,''),COALESCE(binance_txn_id,''),COALESCE(payer_id,''),COALESCE(payer_name,''),COALESCE(matched_by,''),
-COALESCE(callback_url,''),COALESCE(return_url,''),created_at,expires_at,COALESCE(paid_at,0),overpaid`
+COALESCE(callback_url,''),COALESCE(return_url,''),created_at,expires_at,COALESCE(paid_at,0),overpaid,COALESCE(account_id,'default')`
 
 type rowScanner interface{ Scan(...any) error }
 
@@ -133,7 +176,7 @@ func scanOrder(row rowScanner) (*Order, error) {
 	var overpaid int
 	err := row.Scan(&o.ID, &o.Token, &o.MerchantOrderID, &o.Currency, &o.BaseAmount, &o.PayAmount, &o.ActualAmount,
 		&o.Status, &o.NoteCode, &o.BinanceOrderID, &o.BinanceTxnID, &o.PayerID, &o.PayerName, &o.MatchedBy,
-		&o.CallbackURL, &o.ReturnURL, &o.CreatedAt, &o.ExpiresAt, &o.PaidAt, &overpaid)
+		&o.CallbackURL, &o.ReturnURL, &o.CreatedAt, &o.ExpiresAt, &o.PaidAt, &overpaid, &o.AccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -156,10 +199,10 @@ func (s *Store) OrderByMerchantID(mid string) (*Order, error) {
 	return s.orderBy("merchant_order_id=?", mid)
 }
 
-// CandidateOrders 返回可被入账流水核销的订单：待支付，或过期但仍在宽限期内。
-func (s *Store) CandidateOrders(now, graceMs int64) ([]*Order, error) {
+// CandidateOrders 返回某收款账号下可被入账流水核销的订单：待支付，或过期但仍在宽限期内。
+func (s *Store) CandidateOrders(accountID string, now, graceMs int64) ([]*Order, error) {
 	rows, err := s.db.Query(`SELECT `+orderCols+` FROM orders
-		WHERE status='pending' OR (status='expired' AND expires_at+? > ?)`, graceMs, now)
+		WHERE account_id=? AND (status='pending' OR (status='expired' AND expires_at+? > ?))`, accountID, graceMs, now)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +218,8 @@ func (s *Store) CandidateOrders(now, graceMs int64) ([]*Order, error) {
 	return out, rows.Err()
 }
 
-// CreateOrder 分配唯一金额并落库。分配与插入在同一把锁内，杜绝并发撞金额。
-func (s *Store) CreateOrder(cfg *Config, mid, currency string, base int64, ttlSec int64, callbackURL, returnURL string) (*Order, error) {
+// CreateOrder 分配唯一金额并落库。分配与插入在同一把锁内，杜绝并发撞金额。唯一金额按收款账号隔离。
+func (s *Store) CreateOrder(cfg *Config, accountID, mid, currency string, base int64, ttlSec int64, callbackURL, returnURL string) (*Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := nowMs()
@@ -213,9 +256,9 @@ func (s *Store) CreateOrder(cfg *Config, mid, currency string, base int64, ttlSe
 
 	taken := map[int64]bool{}
 	graceMs := cfg.ExpiredGrace * 1000
-	rows, err := s.db.Query(`SELECT pay_amount FROM orders WHERE currency=? AND pay_amount BETWEEN ? AND ?
+	rows, err := s.db.Query(`SELECT pay_amount FROM orders WHERE account_id=? AND currency=? AND pay_amount BETWEEN ? AND ?
 		AND (status='pending' OR (status IN ('expired','underpaid') AND expires_at+? > ?))`,
-		currency, lo, hi, graceMs, now)
+		accountID, currency, lo, hi, graceMs, now)
 	if err != nil {
 		return nil, err
 	}
@@ -288,14 +331,14 @@ func (s *Store) CreateOrder(cfg *Config, mid, currency string, base int64, ttlSe
 	}
 
 	o := &Order{
-		ID: newOrderID(), Token: newToken(), MerchantOrderID: mid, Currency: currency,
+		ID: newOrderID(), Token: newToken(), AccountID: accountID, MerchantOrderID: mid, Currency: currency,
 		BaseAmount: base, PayAmount: pick, Status: "pending", NoteCode: newNoteCode(),
 		CallbackURL: callbackURL, ReturnURL: returnURL,
 		CreatedAt: now, ExpiresAt: now + ttlSec*1000,
 	}
-	_, err = s.db.Exec(`INSERT INTO orders(id,token,merchant_order_id,currency,base_amount,pay_amount,status,note_code,callback_url,return_url,created_at,expires_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-		o.ID, o.Token, o.MerchantOrderID, o.Currency, o.BaseAmount, o.PayAmount, o.Status, o.NoteCode,
+	_, err = s.db.Exec(`INSERT INTO orders(id,token,account_id,merchant_order_id,currency,base_amount,pay_amount,status,note_code,callback_url,return_url,created_at,expires_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		o.ID, o.Token, o.AccountID, o.MerchantOrderID, o.Currency, o.BaseAmount, o.PayAmount, o.Status, o.NoteCode,
 		o.CallbackURL, o.ReturnURL, o.CreatedAt, o.ExpiresAt)
 	if err != nil {
 		return nil, err
@@ -463,5 +506,99 @@ func (s *Store) CallbackRetry(id int64, attempt int, nextAt int64, lastErr strin
 		return err
 	}
 	_, err := s.db.Exec(`UPDATE callbacks SET attempt=?, next_at=?, last_err=? WHERE id=?`, attempt, nextAt, lastErr, id)
+	return err
+}
+
+// ---------- 收款账号 ----------
+
+const accountCols = `id,label,api_key,api_secret,uid,receive_link,receive_email,status,last_ok,last_err,created_at`
+
+func (s *Store) scanAccount(row rowScanner) (*Account, error) {
+	var a Account
+	var enc string
+	if err := row.Scan(&a.ID, &a.Label, &a.APIKey, &enc, &a.UID, &a.ReceiveLink, &a.ReceiveEmail, &a.Status, &a.LastOK, &a.LastErr, &a.CreatedAt); err != nil {
+		return nil, err
+	}
+	sec, err := decryptStr(s.key, enc)
+	if err != nil {
+		return nil, fmt.Errorf("解密账号 %s 的密钥失败（API_AUTH_KEY 是否变更？）: %w", a.ID, err)
+	}
+	a.APISecret = sec
+	return &a, nil
+}
+
+func (s *Store) GetAccount(id string) (*Account, error) {
+	a, err := s.scanAccount(s.db.QueryRow(`SELECT `+accountCols+` FROM accounts WHERE id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return a, err
+}
+
+func (s *Store) ListAccounts(activeOnly bool) ([]*Account, error) {
+	q := `SELECT ` + accountCols + ` FROM accounts`
+	if activeOnly {
+		q += ` WHERE status='active'`
+	}
+	rows, err := s.db.Query(q + ` ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Account
+	for rows.Next() {
+		a, err := s.scanAccount(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// UpsertAccount 按 api_key 幂等：已存在则更新资料并重新启用，否则新建。写回 a.ID / a.CreatedAt。
+func (s *Store) UpsertAccount(a *Account) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	enc, err := encryptStr(s.key, a.APISecret)
+	if err != nil {
+		return err
+	}
+	var id string
+	var created int64
+	err = s.db.QueryRow(`SELECT id, created_at FROM accounts WHERE api_key=?`, a.APIKey).Scan(&id, &created)
+	if err == nil {
+		a.ID, a.CreatedAt, a.Status = id, created, "active"
+		_, err = s.db.Exec(`UPDATE accounts SET label=?, api_secret=?, uid=?, receive_link=?, receive_email=?, status='active', last_err='' WHERE id=?`,
+			a.Label, enc, a.UID, a.ReceiveLink, a.ReceiveEmail, id)
+		return err
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	a.ID, a.CreatedAt, a.Status = newAccountID(), nowMs(), "active"
+	_, err = s.db.Exec(`INSERT INTO accounts(id,label,api_key,api_secret,uid,receive_link,receive_email,status,created_at) VALUES(?,?,?,?,?,?,?,'active',?)`,
+		a.ID, a.Label, a.APIKey, enc, a.UID, a.ReceiveLink, a.ReceiveEmail, a.CreatedAt)
+	return err
+}
+
+func (s *Store) SetAccountStatus(id, status string) error {
+	res, err := s.db.Exec(`UPDATE accounts SET status=? WHERE id=?`, status, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// AccountPolled 记录账号最近一次轮询结果。
+func (s *Store) AccountPolled(id string, ok bool, errStr string) error {
+	if ok {
+		_, err := s.db.Exec(`UPDATE accounts SET last_ok=?, last_err='' WHERE id=?`, nowMs(), id)
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE accounts SET last_err=? WHERE id=?`, errStr, id)
 	return err
 }

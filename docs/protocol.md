@@ -47,6 +47,7 @@ string_to_sign = timestamp + "\n" + nonce + "\n" + SHA256_HEX(body)
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `merchant_order_id` | string | 是 | 商户侧唯一订单号（≤64 字符）；重复返回 `ERR_DUPLICATE` |
+| `account_id` | string | 否 | 收款账号 ID（多账号模式，见 §2.6）；缺省为网关 `config.env` 里的默认账号 `default` |
 | `currency` | string | 是 | 币种，须在网关 `CURRENCIES` 白名单内（如 `USDT`）|
 | `amount` | string | 是 | 基础金额，>0，小数位 ≤ 网关 `AMOUNT_DECIMALS` |
 | `callback_url` | string | 否 | 支付结果回调地址 |
@@ -58,12 +59,14 @@ string_to_sign = timestamp + "\n" + nonce + "\n" + SHA256_HEX(body)
 | 字段 | 说明 |
 |---|---|
 | `order_id` | 网关订单号 |
+| `account_id` | 收款账号 ID（默认账号为 `default`）|
 | `merchant_order_id` | 原样返回 |
 | `status` | `pending` |
 | `currency` / `base_amount` / `pay_amount` | `pay_amount` 为**实际应付的唯一金额**，付款方必须严格按它支付 |
 | `note_code` | 6 位备注码；付款方转账备注里带上它可加速/兜底确认（可选）|
 | `pay_url` | 网关托管收银页地址，直接跳转即可 |
-| `receive_uid` | 收款方币安 UID |
+| `receive_uid` | 收款方币安 UID（即该订单所属账号的 UID）|
+| `receive_link` / `receive_email` | 该账号配置的收款链接（二维码内容，可自建收银页：生成二维码、手机端唤起 App）与收款邮箱，未配置为空 |
 | `created_at` / `expires_at` | 毫秒时间戳 |
 
 ### 2.2 查询订单 `GET /api/v1/orders/{order_id}`
@@ -90,7 +93,27 @@ string_to_sign = timestamp + "\n" + nonce + "\n" + SHA256_HEX(body)
 ```
 
 `code` 取值：`OK`、`ERR_AUTH`、`ERR_PARAM`、`ERR_DUPLICATE`、`ERR_NOT_FOUND`、`ERR_STATE`、
-`ERR_RATE_LIMIT`、`ERR_ALLOC`（唯一金额耗尽）、`ERR_INTERNAL`。
+`ERR_RATE_LIMIT`、`ERR_ALLOC`（唯一金额耗尽）、`ERR_BINANCE`（账号接口：币安校验失败）、`ERR_INTERNAL`。
+
+### 2.6 收款账号（多账号模式）
+
+网关默认只用 `config.env` 里的一个币安账号收款。以下接口可**动态添加更多收款账号**（如平台型商户
+让每个入驻用户用自己的币安账户收款）：每个账号提供自己的**只读** API Key/Secret 与 UID，网关按账号
+分别轮询流水，订单通过 `account_id` 指定收款账号，不同账号的订单与流水严格隔离（唯一金额也按账号分配）。
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/v1/accounts` | 添加账号。请求体：`api_key`、`api_secret`、`uid`（必填），`label`、`receive_link`（https 收款链接）、`receive_email`（可选）。网关会先用该 Key 试拉一条流水，失败返回 `ERR_BINANCE`（消息含币安原因，如 Key 无效 / IP 未白名单 / 地区限制）。同一 `api_key` 重复添加视为更新并重新启用 |
+| `GET /api/v1/accounts/{id}` | 查询账号（`default` 可查） |
+| `POST /api/v1/accounts/{id}/verify` | 立即校验该账号的 Key；失败返回 `ERR_BINANCE` |
+| `POST /api/v1/accounts/{id}/disable` / `/enable` | 停用 / 启用；停用后不能再用它下单（`default` 不可停用）|
+
+账号响应 `data`：`account_id`、`label`、`api_key_masked`、`uid`、`receive_link`、`receive_email`、
+`status`（`active`/`disabled`）、`last_ok`（最近一次轮询成功时间，毫秒）、`last_err`（最近轮询错误）、`created_at`。
+**永不返回** Key 与 Secret。
+
+安全提示：Secret 以 AES-256-GCM 加密存储，密钥由 `API_AUTH_KEY` 派生——更换 `API_AUTH_KEY` 后已存账号需重新添加。
+各账号的 Key 只需「允许读取」权限，IP 白名单填网关服务器出口 IP。
 
 ## 3. 回调体
 
@@ -98,6 +121,7 @@ string_to_sign = timestamp + "\n" + nonce + "\n" + SHA256_HEX(body)
 {
   "event": "paid",                    // paid | underpaid | expired
   "order_id": "…",
+  "account_id": "default",            // 收款账号 ID
   "merchant_order_id": "…",
   "status": "paid",
   "currency": "USDT",
