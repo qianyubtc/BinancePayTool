@@ -113,6 +113,7 @@ DB_PATH={tempfile.mkdtemp()}/e2e.db
         headers, body = CB_QUEUE.get(timeout=15)
         payload = BPayGate.verify_callback(headers, body, SECRET)
         assert payload["event"] == "paid" and payload["merchant_order_id"] == "E2E-1", payload
+        assert payload["counterparty_id"] == "1163000000" and payload["payer_id"] == "1163000000" and payload["payer_binance_id"] == "", payload
         got = gw.get_order(order["order_id"])
         assert got["status"] == "paid" and got["matched_by"] == "amount", got
         got2 = gw.get_order_by_merchant_id("E2E-1")

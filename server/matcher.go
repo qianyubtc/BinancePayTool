@@ -203,6 +203,15 @@ func (m *Matcher) scan(as *accountState) (bool, error) {
 	return true, nil
 }
 
+// idStr 数字 ID 转字符串，0 视为缺失。
+func idStr(v int64) string {
+	if v <= 0 {
+		return ""
+	}
+	return strconv64(v)
+}
+
+// payerOf 兼容字段 payer_id：binanceId 优先，缺失退回 counterpartyId（两者命名空间不同，需要稳定标识请用 counterparty_id）。
 func payerOf(t payTxn) string {
 	if t.PayerInfo.BinanceID > 0 {
 		return strconv64(t.PayerInfo.BinanceID)
@@ -235,7 +244,7 @@ func (m *Matcher) applyTxn(as *accountState, t payTxn) error {
 	// ① 唯一金额精确匹配
 	for _, o := range cands {
 		if o.Currency == cur && o.PayAmount == amt && t.Time >= o.CreatedAt-120*1000 {
-			ok, err := m.st.Finish(o, "paid", "amount", t.OrderID, t.TransactionID, payerID, t.PayerInfo.Name, amt, m.cfg.SuffixCooldown)
+			ok, err := m.st.Finish(o, "paid", "amount", t.OrderID, t.TransactionID, payerID, t.PayerInfo.Name, idStr(t.PayerInfo.BinanceID), idStr(t.CounterpartyID), amt, m.cfg.SuffixCooldown)
 			if ok {
 				log.Printf("[info] 订单 %s 已支付（金额匹配）account=%s binanceOrderId=%s amount=%s %s", o.ID, as.acc.ID, t.OrderID, fmtAmount(amt), cur)
 			}
@@ -255,7 +264,7 @@ func (m *Matcher) applyTxn(as *accountState, t payTxn) error {
 		if amt < o.BaseAmount {
 			status = "underpaid"
 		}
-		ok, err := m.st.Finish(o, status, "note", t.OrderID, t.TransactionID, payerID, t.PayerInfo.Name, amt, m.cfg.SuffixCooldown)
+		ok, err := m.st.Finish(o, status, "note", t.OrderID, t.TransactionID, payerID, t.PayerInfo.Name, idStr(t.PayerInfo.BinanceID), idStr(t.CounterpartyID), amt, m.cfg.SuffixCooldown)
 		if ok {
 			log.Printf("[info] 订单 %s → %s（备注匹配）account=%s binanceOrderId=%s amount=%s %s", o.ID, status, as.acc.ID, t.OrderID, fmtAmount(amt), cur)
 		}
@@ -323,7 +332,7 @@ func (m *Matcher) Claim(o *Order, binanceOrderID string) (claimResult, error) {
 	if amt < o.BaseAmount {
 		status, code = "underpaid", "UNDERPAID"
 	}
-	ok, err := m.st.Finish(o, status, "claim", t.OrderID, t.TransactionID, payerOf(t), t.PayerInfo.Name, amt, m.cfg.SuffixCooldown)
+	ok, err := m.st.Finish(o, status, "claim", t.OrderID, t.TransactionID, payerOf(t), t.PayerInfo.Name, idStr(t.PayerInfo.BinanceID), idStr(t.CounterpartyID), amt, m.cfg.SuffixCooldown)
 	if err != nil {
 		return claimResult{}, err
 	}

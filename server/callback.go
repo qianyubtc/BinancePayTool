@@ -64,6 +64,8 @@ func callbackPayload(o *Order, event string) ([]byte, error) {
 		"binance_order_id":  o.BinanceOrderID,
 		"binance_txn_id":    o.BinanceTxnID,
 		"payer_id":          o.PayerID,
+		"payer_binance_id":  o.PayerBinanceID,
+		"counterparty_id":   o.CounterpartyID,
 		"paid_at":           o.PaidAt,
 		"timestamp":         nowMs(),
 	}

@@ -72,7 +72,9 @@ string_to_sign = timestamp + "\n" + nonce + "\n" + SHA256_HEX(body)
 ### 2.2 查询订单 `GET /api/v1/orders/{order_id}`
 
 响应 `data` 在 2.1 基础上增加：`actual_amount`、`paid_at`、`matched_by`（`amount`/`note`/`claim`）、
-`binance_order_id`（币安 18 位订单编号）、`payer_id`（付款方 Pay 账户 ID）、`overpaid`（bool）。
+`binance_order_id`（币安 18 位订单编号）、`payer_id`、`payer_binance_id`、`counterparty_id`（付款方标识，见下）、`overpaid`（bool）。
+
+付款方标识三个字段：`counterparty_id` 来自流水的 `counterpartyId`，每条流水都有，是**付款方的稳定标识**，做身份锚定 / 风控请用它；`payer_binance_id` 来自 `payerInfo.binanceId`，部分流水缺失，为空串；`payer_id` 是兼容字段（`binanceId` 优先、缺失时退回 `counterpartyId`，两者命名空间不同，同一付款人可能得到两个值），老接入方可继续使用。
 也可用 `GET /api/v1/orders/by-merchant/{merchant_order_id}` 按商户单号查询。
 
 ### 2.3 关闭订单 `POST /api/v1/orders/{order_id}/close`
@@ -133,6 +135,8 @@ string_to_sign = timestamp + "\n" + nonce + "\n" + SHA256_HEX(body)
   "binance_order_id": "452021922068888888",
   "binance_txn_id": "P_EXAMPLE1234567890",
   "payer_id": "1160000000",
+  "payer_binance_id": "1160000000",  // 可能为空
+  "counterparty_id": "1163000000",   // 付款方稳定标识
   "paid_at": 1788325910559,
   "timestamp": 1788325912000
 }

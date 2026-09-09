@@ -31,8 +31,10 @@ type Order struct {
 	NoteCode        string
 	BinanceOrderID  string
 	BinanceTxnID    string
-	PayerID         string
+	PayerID         string // 兼容字段：binanceId 优先，缺失退回 counterpartyId
 	PayerName       string
+	PayerBinanceID  string // 流水 payerInfo.binanceId（可能为空）
+	CounterpartyID  string // 流水 counterpartyId（每条都有，付款方稳定标识）
 	MatchedBy       string // amount|note|claim
 	CallbackURL     string
 	ReturnURL       string
@@ -85,6 +87,8 @@ CREATE TABLE IF NOT EXISTS orders(
   binance_txn_id TEXT,
   payer_id TEXT,
   payer_name TEXT,
+  payer_binance_id TEXT,
+  counterparty_id TEXT,
   matched_by TEXT,
   callback_url TEXT,
   return_url TEXT,
@@ -134,6 +138,8 @@ CREATE TABLE IF NOT EXISTS accounts(
 // migrations 给旧库补列；重复执行会因「duplicate column」报错，忽略即可。
 var migrations = []string{
 	`ALTER TABLE orders ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'`,
+	`ALTER TABLE orders ADD COLUMN payer_binance_id TEXT`,
+	`ALTER TABLE orders ADD COLUMN counterparty_id TEXT`,
 	`CREATE INDEX IF NOT EXISTS idx_orders_account ON orders(account_id, status)`,
 }
 
@@ -166,7 +172,7 @@ func openStore(path string) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 const orderCols = `id,token,merchant_order_id,currency,base_amount,pay_amount,COALESCE(actual_amount,0),status,note_code,
-COALESCE(binance_order_id,''),COALESCE(binance_txn_id,''),COALESCE(payer_id,''),COALESCE(payer_name,''),COALESCE(matched_by,''),
+COALESCE(binance_order_id,''),COALESCE(binance_txn_id,''),COALESCE(payer_id,''),COALESCE(payer_name,''),COALESCE(payer_binance_id,''),COALESCE(counterparty_id,''),COALESCE(matched_by,''),
 COALESCE(callback_url,''),COALESCE(return_url,''),created_at,expires_at,COALESCE(paid_at,0),overpaid,COALESCE(account_id,'default')`
 
 type rowScanner interface{ Scan(...any) error }
@@ -175,7 +181,7 @@ func scanOrder(row rowScanner) (*Order, error) {
 	var o Order
 	var overpaid int
 	err := row.Scan(&o.ID, &o.Token, &o.MerchantOrderID, &o.Currency, &o.BaseAmount, &o.PayAmount, &o.ActualAmount,
-		&o.Status, &o.NoteCode, &o.BinanceOrderID, &o.BinanceTxnID, &o.PayerID, &o.PayerName, &o.MatchedBy,
+		&o.Status, &o.NoteCode, &o.BinanceOrderID, &o.BinanceTxnID, &o.PayerID, &o.PayerName, &o.PayerBinanceID, &o.CounterpartyID, &o.MatchedBy,
 		&o.CallbackURL, &o.ReturnURL, &o.CreatedAt, &o.ExpiresAt, &o.PaidAt, &overpaid, &o.AccountID)
 	if err != nil {
 		return nil, err
@@ -347,7 +353,7 @@ func (s *Store) CreateOrder(cfg *Config, accountID, mid, currency string, base i
 }
 
 // Finish 用一笔币安流水核销订单（paid 或 underpaid）。以币安 orderId 幂等：已消费返回 false。
-func (s *Store) Finish(o *Order, status, matchedBy, binanceOrderID, binanceTxnID, payerID, payerName string, actual int64, cooldownSec int64) (bool, error) {
+func (s *Store) Finish(o *Order, status, matchedBy, binanceOrderID, binanceTxnID, payerID, payerName, payerBinanceID, counterpartyID string, actual int64, cooldownSec int64) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := nowMs()
@@ -359,9 +365,9 @@ func (s *Store) Finish(o *Order, status, matchedBy, binanceOrderID, binanceTxnID
 	if _, err := tx.Exec(`INSERT INTO consumed(binance_order_id,order_id,at) VALUES(?,?,?)`, binanceOrderID, o.ID, now); err != nil {
 		return false, nil // 已被消费（唯一键冲突），不视为错误
 	}
-	res, err := tx.Exec(`UPDATE orders SET status=?, matched_by=?, binance_order_id=?, binance_txn_id=?, payer_id=?, payer_name=?,
+	res, err := tx.Exec(`UPDATE orders SET status=?, matched_by=?, binance_order_id=?, binance_txn_id=?, payer_id=?, payer_name=?, payer_binance_id=?, counterparty_id=?,
 		actual_amount=?, paid_at=?, overpaid=? WHERE id=? AND status IN ('pending','expired')`,
-		status, matchedBy, binanceOrderID, binanceTxnID, payerID, payerName,
+		status, matchedBy, binanceOrderID, binanceTxnID, payerID, payerName, payerBinanceID, counterpartyID,
 		actual, now, boolInt(actual > o.PayAmount), o.ID)
 	if err != nil {
 		return false, err

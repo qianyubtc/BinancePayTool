@@ -53,7 +53,9 @@ type Order struct {
 	MatchedBy       string `json:"matched_by"`
 	BinanceOrderID  string `json:"binance_order_id"`
 	BinanceTxnID    string `json:"binance_txn_id"`
-	PayerID         string `json:"payer_id"`
+	PayerID         string `json:"payer_id"`         // 兼容：binanceId 优先，缺失退回 counterpartyId
+	PayerBinanceID  string `json:"payer_binance_id"` // 流水 payerInfo.binanceId，可能为空
+	CounterpartyID  string `json:"counterparty_id"`  // 流水 counterpartyId，付款方稳定标识
 	Overpaid        bool   `json:"overpaid"`
 	CreatedAt       int64  `json:"created_at"`
 	ExpiresAt       int64  `json:"expires_at"`
@@ -75,6 +77,8 @@ type Callback struct {
 	BinanceOrderID  string `json:"binance_order_id"`
 	BinanceTxnID    string `json:"binance_txn_id"`
 	PayerID         string `json:"payer_id"`
+	PayerBinanceID  string `json:"payer_binance_id"`
+	CounterpartyID  string `json:"counterparty_id"`
 	PaidAt          int64  `json:"paid_at"`
 	Timestamp       int64  `json:"timestamp"`
 }

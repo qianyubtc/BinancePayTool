@@ -204,6 +204,8 @@ func (a *App) orderJSON(o *Order) map[string]any {
 		"binance_order_id":  o.BinanceOrderID,
 		"binance_txn_id":    o.BinanceTxnID,
 		"payer_id":          o.PayerID,
+		"payer_binance_id":  o.PayerBinanceID,
+		"counterparty_id":   o.CounterpartyID,
 		"overpaid":          o.Overpaid,
 		"created_at":        o.CreatedAt,
 		"expires_at":        o.ExpiresAt,
