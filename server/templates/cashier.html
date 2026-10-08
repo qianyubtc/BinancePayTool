@@ -2,159 +2,318 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0e11" media="(prefers-color-scheme: dark)">
+<meta name="format-detection" content="telephone=no">
+<meta name="robots" content="noindex,nofollow">
 <title>订单支付</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--fg:#16181d;--muted:#6b7280;--brand:#f0b90b;--ok:#16a34a;--err:#dc2626;--line:#e5e7eb}
-@media(prefers-color-scheme:dark){:root{--bg:#101216;--card:#181b21;--fg:#e7e9ee;--muted:#9aa1ad;--line:#2a2f38}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-.wrap{max-width:460px;margin:0 auto;padding:20px 16px 40px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
-h1{font-size:17px;margin:0 0 4px}.muted{color:var(--muted);font-size:13px}
-.amt{font-size:34px;font-weight:700;margin:10px 0 2px;word-break:break-all}
-.amt small{font-size:16px;font-weight:600;margin-left:4px}
-.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line);gap:10px}
-.row:first-child{border-top:none}
-.k{color:var(--muted);font-size:13px;white-space:nowrap}.v{font-weight:600;word-break:break-all;text-align:right}
-button{border:0;border-radius:9px;padding:9px 14px;font-size:13px;cursor:pointer;background:var(--brand);color:#111;font-weight:600}
-.copy{padding:3px 10px;font-size:12px;margin-left:6px;background:transparent;border:1px solid var(--line);color:var(--fg)}
-.qr{display:block;margin:12px auto 6px;width:220px;max-width:80%;border-radius:10px;background:#fff;padding:8px}
-.tip{background:rgba(240,185,11,.12);border:1px solid rgba(240,185,11,.4);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px}
-.status{display:flex;align-items:center;gap:8px;font-weight:600}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--brand);animation:b 1.2s infinite}
-@keyframes b{50%{opacity:.25}}
-.paid .dot{background:var(--ok);animation:none}
+:root{--bg:#f4f5f7;--glow:rgba(240,185,11,.16);--card:#fff;--fg:#1e2329;--muted:#5e6673;--line:#e6e8eb;--soft:#f5f6f8;--seg:#fff;
+--brand:#f0b90b;--brand-hi:#f8c81f;--on-brand:#1e2329;--accent:#8a6100;--tail-bg:#fff1c2;--tail-fg:#7a5600;
+--ok:#0a7d55;--ok-bg:#e7f6ef;--err:#c7253e;--err-bg:#fdeef0;--err-line:#f4c7ce;--warn-bg:#fff8e1;--warn-line:#f3dc8c;
+--shadow:0 1px 2px rgba(16,24,40,.04),0 10px 28px -14px rgba(16,24,40,.16)}
+@media(prefers-color-scheme:dark){:root{--bg:#0b0e11;--glow:rgba(240,185,11,.09);--card:#161a1e;--fg:#eaecef;--muted:#929aa5;--line:#2b3139;--soft:#1e2329;--seg:#2b3139;
+--accent:#f0b90b;--tail-bg:rgba(240,185,11,.16);--tail-fg:#f8d12f;
+--ok:#2ebd85;--ok-bg:rgba(46,189,133,.12);--err:#f6465d;--err-bg:rgba(246,70,93,.09);--err-line:rgba(246,70,93,.32);--warn-bg:rgba(240,185,11,.07);--warn-line:rgba(240,185,11,.3);
+--shadow:0 10px 30px -16px rgba(0,0,0,.7)}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;background:var(--bg) radial-gradient(1100px 360px at 50% -140px,var(--glow),transparent 72%) no-repeat;color:var(--fg);
+font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+.page{max-width:480px;margin:0 auto;padding:20px 16px calc(32px + env(safe-area-inset-bottom))}
+.hd{display:flex;align-items:center;gap:12px;margin:2px 2px 18px}
+.hd-ic{width:40px;height:40px;border-radius:12px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;flex:none;box-shadow:0 8px 18px -8px rgba(240,185,11,.75)}
+.hd-ic .ic{width:22px;height:22px}
+.hd h1{font-size:18px;line-height:1.3;margin:0}
+.hd p{margin:0;font-size:12.5px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:14px}
+.muted{color:var(--muted)}.center{text-align:center}
 .bad{color:var(--err)}.good{color:var(--ok)}
-input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--fg);font-size:14px}
-details summary{cursor:pointer;color:var(--muted);font-size:13px}
-#claimMsg{font-size:13px;margin-top:8px}
-.center{text-align:center}
-.tabs{display:flex;gap:6px;margin-bottom:14px}
-.tab{flex:1;text-align:center;padding:9px 6px;border-radius:9px;border:1px solid var(--line);font-size:13px;cursor:pointer;color:var(--muted);background:transparent}
-.tab.on{background:var(--brand);color:#111;border-color:var(--brand);font-weight:600}
+/* 金额 */
+.amt-card{text-align:center;padding:22px 20px 18px}
+.label{font-size:13px;color:var(--muted)}
+.amt{font-size:clamp(32px,10.5vw,42px);font-weight:700;line-height:1.15;margin:6px 0 12px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;word-break:break-all}
+.amt small{font-size:16px;font-weight:600;margin-left:6px;letter-spacing:0;color:var(--muted)}
+.tail{color:var(--tail-fg);background:var(--tail-bg);border-radius:8px;padding:0 4px;margin-left:1px;box-shadow:inset 0 -3px 0 var(--brand)}
+.hint{display:flex;gap:10px;text-align:left;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.7;margin-top:16px}
+.hint>.ic{color:var(--accent);margin-top:3px}
+.hint mark{background:var(--tail-bg);color:var(--tail-fg);font-weight:700;border-radius:4px;padding:0 3px;font-variant-numeric:tabular-nums}
+.st-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);text-align:left}
+.status{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;min-width:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);flex:none;animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(240,185,11,.6)}70%{box-shadow:0 0 0 7px rgba(240,185,11,0)}100%{box-shadow:0 0 0 0 rgba(240,185,11,0)}}
+.paid .dot{background:var(--ok);animation:none}
+.is-end .dot{background:var(--err);animation:none}
+.timer{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--soft);border-radius:999px;padding:4px 10px}
+.timer b{color:var(--fg);font-weight:600}
+.timer.low b,.timer.over b{color:var(--err)}
+.st-sub{margin:8px 0 0;font-size:12px;color:var(--muted);text-align:left}
+.lb-order{display:none}.is-end .lb-pay{display:none}.is-end .lb-order{display:inline}
+.is-end .st-sub,.is-end .amt-card .hint,.is-end .amt-card .copy,.is-end .timer{display:none}
+.is-end .amt{color:var(--muted)}.is-end .tail{background:none;box-shadow:none;color:inherit;padding:0;margin:0}
+/* 复制按钮 */
+.copy{flex:none;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:600;line-height:1.3;border-radius:999px;background:var(--soft);border:1px solid var(--line);color:var(--fg);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.copy .ic{width:14px;height:14px}
+.copy.lg{padding:8px 16px;font-size:13.5px;background:var(--card)}
+.copy:hover{border-color:var(--brand)}
+.copy.ok{color:var(--ok);border-color:currentColor}
+/* 付款方式 */
+.tabs{display:flex;gap:4px;padding:4px;background:var(--soft);border:1px solid var(--line);border-radius:13px;margin-bottom:18px}
+.tabs.single{display:none}
+.tab{flex:1 1 auto;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 4px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.tab[data-t=scan]{order:1}.tab[data-t=app]{order:2}.tab[data-t=manual]{order:3}.is-m .tab[data-t=app]{order:0}
+.tab.on{background:var(--seg);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgba(16,24,40,.1),0 0 0 1px var(--line)}
+.tab.on .ic{color:var(--accent)}
 .panel{display:none}.panel.on{display:block}
-.appbtn{display:block;width:100%;text-align:center;padding:14px;border-radius:12px;background:var(--brand);color:#111;font-weight:700;font-size:16px;text-decoration:none;margin:8px 0 4px}
-.steps{font-size:13px;color:var(--muted);line-height:1.9;margin:6px 0 0;padding-left:18px}
-.success{display:none;text-align:center;padding:30px 20px 26px}
-.success.on{display:block}
-.check{width:76px;height:76px;border-radius:50%;background:var(--ok);color:#fff;font-size:46px;line-height:76px;margin:0 auto 14px;animation:pop .45s ease-out}
-@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
-.success h2{margin:0 0 4px;font-size:26px;color:var(--ok)}
-.success .amt{font-size:30px;margin:8px 0 2px}
+.appbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px 16px;border-radius:14px;background:var(--brand);color:var(--on-brand);font-weight:700;font-size:16px;text-decoration:none;box-shadow:0 10px 22px -12px rgba(240,185,11,.95);transition:transform .1s,background .15s;-webkit-tap-highlight-color:transparent}
+.appbtn:hover{background:var(--brand-hi)}.appbtn:active{transform:scale(.985)}
+.appbtn .ic{width:19px;height:19px}
+.hint>div,.steps li,.notice p,.tip{text-wrap:pretty}
+.sub{margin:10px 0 0;font-size:12.5px;line-height:1.6;color:var(--muted)}
+.steps{list-style:none;counter-reset:s;margin:18px 0 0;padding:16px 0 0;border-top:1px solid var(--line)}
+.steps li{counter-increment:s;position:relative;padding:0 0 12px 34px;font-size:13.5px;line-height:1.65}
+.steps li:last-child{padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:22px;height:22px;border-radius:50%;background:var(--soft);border:1px solid var(--line);font-size:12px;font-weight:700;line-height:20px;text-align:center}
+.steps li:not(:last-child)::after{content:"";position:absolute;left:11px;top:25px;bottom:3px;width:1px;background:var(--line)}
+.steps b{font-variant-numeric:tabular-nums}
+.qrwrap{width:232px;max-width:100%;margin:0 auto;padding:14px;background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 0 0 5px var(--soft)}
+.qr{display:block;width:100%;height:auto;aspect-ratio:1/1}
+.kv{border:1px solid var(--line);border-radius:14px}
+.kv-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px}
+.kv-row+.kv-row{border-top:1px solid var(--line)}
+.kv-row>div{min-width:0}
+.k{display:block;font-size:12px;color:var(--muted)}
+.v{display:block;font-weight:600;font-size:15px;word-break:break-all;font-variant-numeric:tabular-nums;-webkit-user-select:all;user-select:all}
+.tip{margin-top:14px;font-size:12.5px;line-height:1.75;color:var(--muted);background:var(--soft);border-radius:12px;padding:10px 12px}
+.tip b{color:var(--fg)}
+/* 回填 */
+.claim{padding:16px 20px}
+.claim summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:500;-webkit-tap-highlight-color:transparent}
+.claim summary::-webkit-details-marker{display:none}
+.claim summary>.ic{color:var(--muted)}
+.claim .sum{min-width:0;text-wrap:pretty}.claim .sum small{display:block;font-size:12.5px;font-weight:400;color:var(--muted)}
+.claim summary .chev{margin-left:auto;transition:transform .2s}
+.claim details[open] .chev{transform:rotate(90deg)}
+.claim-form{display:flex;gap:8px;margin-top:10px}
+input{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:var(--soft);color:var(--fg);font:inherit;font-size:16px;font-variant-numeric:tabular-nums}
+input::placeholder{color:var(--muted);opacity:.75}
+input:focus{outline:2px solid var(--brand);outline-offset:-1px;background:var(--card)}
+.btn2{flex:none;padding:0 16px;border-radius:11px;border:0;background:var(--fg);color:var(--card);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.btn2:disabled{opacity:.55;cursor:default}
+#claimMsg{font-size:13px;margin-top:8px}#claimMsg:empty{display:none}
+/* 状态提示 */
+.notice{display:none;gap:12px;align-items:flex-start;border-radius:16px;padding:14px 16px;margin-bottom:14px;border:1px solid}
+.notice .ic{width:20px;height:20px;margin-top:2px}
+.notice b{display:block;font-size:15px;margin-bottom:2px}
+.notice p{margin:0;font-size:13px;line-height:1.65}
+.notice.warn{background:var(--warn-bg);border-color:var(--warn-line)}.notice.warn .ic{color:var(--accent)}
+.notice.err{background:var(--err-bg);border-color:var(--err-line)}.notice.err .ic,.notice.err b{color:var(--err)}
+.is-expired .nt-expired,.is-closed .nt-closed,.is-underpaid .nt-underpaid{display:flex}
+.is-end #methods,.is-closed #claimCard,.is-underpaid #claimCard{display:none}
+/* 支付成功 */
+.success{display:none;text-align:center;padding:34px 22px 26px;max-width:480px;margin:0 auto}
+.success.on,.is-paid .success{display:block}
+.is-paid .pc{display:none}
+.check{width:76px;height:76px;margin:0 auto 16px;border-radius:50%;background:var(--ok-bg);display:grid;place-items:center;animation:pop .45s ease-out}
+.check svg{width:76px;height:76px;fill:none;stroke:var(--ok);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+.check path{stroke-dasharray:40;stroke-dashoffset:40;animation:draw .45s .25s ease-out forwards}
+@keyframes pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes draw{to{stroke-dashoffset:0}}
+.success h2{margin:0;font-size:24px;color:var(--ok)}
+.success .amt{font-size:32px;margin:10px 0 4px}
+.success .muted{font-size:13.5px}
+#succTime:empty,#redirectMsg:empty,#redirectBtn:empty{display:none}
+#redirectMsg{margin-top:18px;padding-top:16px;border-top:1px dashed var(--line);font-size:13.5px;color:var(--muted)}
+#redirectBtn{margin-top:12px}
+.ft{margin-top:20px;text-align:center;font-size:12px;color:var(--muted)}
+.ft p{margin:6px 0}.ft span{display:inline-block}.ft .ic{width:13px;height:13px;margin-right:4px;vertical-align:-2px}
+.ft a{color:inherit}
+@media(min-width:880px){
+.page{max-width:920px;padding-top:44px}
+.hd{margin-bottom:22px}
+.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto 1fr;grid-template-areas:"amt pay" "claim pay";align-items:start;gap:18px}
+.amt-card{grid-area:amt}#methods{grid-area:pay}#claimCard{grid-area:claim}
+.is-end .grid{grid-template-columns:minmax(0,480px);grid-template-rows:auto;grid-template-areas:"amt" "claim";justify-content:center}
+.is-closed .grid,.is-underpaid .grid{grid-template-areas:"amt"}
+.notice,.is-paid .hd,.is-end .hd{max-width:480px;margin-left:auto;margin-right:auto}
+}
+@media(max-width:374px){.tab .ic{display:none}.tab{font-size:12.5px}.card{padding:18px 16px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.check path{stroke-dashoffset:0}}
 </style>
 </head>
-<body>
-<div class="wrap">
-  <div class="card success" id="successCard">
-    <div class="check">✓</div>
+<body class="{{if .IsMobile}}is-m{{end}}{{if eq .Status "paid"}} is-paid{{else if eq .Status "expired"}} is-expired is-end{{else if eq .Status "closed"}} is-closed is-end{{else if eq .Status "underpaid"}} is-underpaid is-end{{end}}">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18h2"/></symbol>
+<symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2M20 14v.01M14 20h2M18 18h2v2"/></symbol>
+<symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h15l-4-4M20 16H5l4 4"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+</svg>
+<div class="page">
+  <header class="hd">
+    <span class="hd-ic"><svg class="ic"><use href="#i-shield"/></svg></span>
+    <div><h1>订单支付</h1><p>Binance Pay 转账 · 即时到账 · 0 手续费</p></div>
+  </header>
+
+  <section class="card success" id="successCard" aria-live="polite">
+    <div class="check"><svg viewBox="0 0 76 76"><path d="M24 39l9.5 9.5L53 29"/></svg></div>
     <h2>支付成功</h2>
     <div class="amt" id="succAmt">{{.ShowAmount}}<small>{{.Currency}}</small></div>
     <div class="muted">订单已确认到账</div>
-    <div class="muted" id="redirectMsg" style="margin-top:12px"></div>
-    <div id="redirectBtn" style="margin-top:14px"></div>
-  </div>
+    <div class="muted" id="succTime"></div>
+    <div id="redirectMsg"></div>
+    <div id="redirectBtn"></div>
+  </section>
 
-  <div class="card center pc">
-    <h1>请用币安 App「支付」转账</h1>
-    <div class="muted">Binance Pay · 即时到账 · 0 手续费</div>
-    <div class="amt" id="payAmount">{{.ShowAmount}}<small>{{.Currency}}</small></div>
-    {{if eq .Mode "note"}}<div class="muted">体验<strong>备注码匹配</strong>：金额 ≥ {{.ShowAmount}} 即可，不要求精确；<strong>备注必须填 {{.NoteCode}}</strong></div>
-    {{else if eq .Mode "claim"}}<div class="muted">体验<strong>回填订单编号</strong>：支付 {{.ShowAmount}}，<strong>不要填备注</strong>，付完在下方粘贴币安订单编号</div>
-    {{else}}<div class="muted">请务必按上方金额<strong>一分不差</strong>支付，用于自动确认</div>{{end}}
-    <button class="copy" onclick="cp('{{.ShowAmount}}',this)">复制金额</button>
-  </div>
+  <div class="notice warn nt-expired pc" role="status"><svg class="ic"><use href="#i-clock"/></svg><div><b>订单已超时</b><p>请不要再向本订单付款。如果你已经付过款，系统通常仍会自动确认；长时间未确认，请在下方回填币安订单编号。</p></div></div>
+  <div class="notice err nt-closed pc" role="status"><svg class="ic"><use href="#i-x"/></svg><div><b>订单已关闭</b><p>该订单已关闭，请勿付款。如已付款，请联系商家处理。</p></div></div>
+  <div class="notice err nt-underpaid pc" role="status"><svg class="ic"><use href="#i-alert"/></svg><div><b>实付金额不足</b><p>到账金额少于应付金额<span id="ntActual"></span>，订单需商家人工处理，请勿重复付款并联系商家。</p></div></div>
 
-  <div class="card pc">
-    <div class="tabs">
-      {{if .HasQR}}<div class="tab" data-t="scan">扫码支付</div>{{end}}
-      {{if .AppLink}}<div class="tab" data-t="app">打开币安 App</div>{{end}}
-      <div class="tab" data-t="manual">手动转账</div>
-    </div>
+  <main class="grid pc">
+    <section class="card amt-card">
+      <div class="label"><span class="lb-pay">支付金额</span><span class="lb-order">订单金额</span></div>
+      <div class="amt" id="payAmount">{{.AmountHead}}{{if .AmountTail}}<span class="tail">{{.AmountTail}}</span>{{end}}<small>{{.Currency}}</small></div>
+      <button type="button" class="copy lg" data-copy="{{.ShowAmount}}"><svg class="ic"><use href="#i-copy"/></svg><span>复制金额</span></button>
+      {{if eq .Mode "note"}}<div class="hint"><svg class="ic"><use href="#i-info"/></svg><div>体验<strong>备注码匹配</strong>：金额 ≥ {{.ShowAmount}} 即可，不要求精确；<strong>备注必须填 {{.NoteCode}}</strong></div></div>
+      {{else if eq .Mode "claim"}}<div class="hint"><svg class="ic"><use href="#i-info"/></svg><div>体验<strong>回填订单编号</strong>：支付 {{.ShowAmount}}，<strong>不要填备注</strong>，付完在下方粘贴币安订单编号</div></div>
+      {{else}}<div class="hint"><svg class="ic"><use href="#i-alert"/></svg><div>请按上方金额<strong>一分不差</strong>支付{{if .AmountTail}}。末尾 <mark>{{.AmountTail}}</mark> 是本单的识别尾数，系统靠它自动确认到账，<strong>请勿抹零或改动</strong>{{else}}，用于自动确认{{end}}。</div></div>{{end}}
+      <div class="st-row">
+        <span class="status" id="st"><span class="dot"></span><span id="stTxt"{{if or (eq .Status "expired") (eq .Status "closed") (eq .Status "underpaid")}} class="bad"{{end}}>{{if eq .Status "paid"}}支付成功 ✓{{else if eq .Status "expired"}}订单已过期，若已付款请回填订单编号{{else if eq .Status "closed"}}订单已关闭{{else if eq .Status "underpaid"}}实付金额不足，请联系商家处理{{else}}等待支付{{end}}</span></span>
+        <span class="timer" id="timer" title="订单剩余有效时间"><svg class="ic"><use href="#i-clock"/></svg><b id="cd">--:--</b></span>
+      </div>
+      <p class="st-sub">付款完成后本页会自动确认，无需刷新</p>
+    </section>
 
-    {{if .HasQR}}
-    <div class="panel" id="p-scan">
-      <img class="qr" src="/pay/{{.Token}}/qr" alt="收款二维码">
-      <ol class="steps">
-        <li>打开币安 App，首页点「扫一扫」扫描上方二维码</li>
-        <li>选择币种 <b>{{.Currency}}</b>，输入金额 <b>{{.ShowAmount}}</b></li>
-        <li>{{.NoteHint}}，确认支付</li>
-      </ol>
-    </div>
-    {{end}}
+    <section class="card" id="methods">
+      <div class="tabs{{if not (or .HasQR .AppLink)}} single{{end}}" role="tablist">
+        {{if .HasQR}}<button type="button" class="tab" data-t="scan" role="tab"><svg class="ic"><use href="#i-qr"/></svg>扫码支付</button>{{end}}
+        {{if .AppLink}}<button type="button" class="tab" data-t="app" role="tab"><svg class="ic"><use href="#i-phone"/></svg>打开币安 App</button>{{end}}
+        <button type="button" class="tab" data-t="manual" role="tab"><svg class="ic"><use href="#i-swap"/></svg>手动转账</button>
+      </div>
 
-    {{if .AppLink}}
-    <div class="panel" id="p-app">
-      <a class="appbtn" href="{{.AppLink}}">打开币安 App 支付</a>
-      <div class="muted center">未安装币安 App 时会打开网页版</div>
-      <ol class="steps">
-        <li>跳转后收款人已自动填好，请核对 UID <b>{{.UID}}</b></li>
-        <li>选择币种 <b>{{.Currency}}</b>，输入金额 <b>{{.ShowAmount}}</b></li>
-        <li>{{.NoteHint}}，确认支付后回到本页等待确认</li>
-      </ol>
-    </div>
-    {{end}}
+      {{if .HasQR}}
+      <div class="panel" id="p-scan" role="tabpanel">
+        <div class="qrwrap"><img class="qr" src="/pay/{{.Token}}/qr" alt="收款二维码" width="200" height="200" loading="lazy"></div>
+        <ol class="steps">
+          <li>打开币安 App，首页点「扫一扫」扫描上方二维码</li>
+          <li>选择币种 <b>{{.Currency}}</b>，输入金额 <b>{{.ShowAmount}}</b></li>
+          <li>{{.NoteHint}}，确认支付</li>
+        </ol>
+      </div>
+      {{end}}
 
-    <div class="panel" id="p-manual">
-      <div class="row"><span class="k">收款人币安 UID</span><span class="v">{{.UID}}<button class="copy" onclick="cp('{{.UID}}',this)">复制</button></span></div>
-      {{if .Email}}<div class="row"><span class="k">或收款邮箱</span><span class="v">{{.Email}}<button class="copy" onclick="cp('{{.Email}}',this)">复制</button></span></div>{{end}}
-      <div class="row"><span class="k">{{.NoteLabel}}</span><span class="v">{{.NoteCode}}<button class="copy" onclick="cp('{{.NoteCode}}',this)">复制</button></span></div>
-      <div class="tip">路径：币安 App → 首页「支付」→ 转账 → 输入 UID → 选 {{.Currency}} → 输入金额 {{.ShowAmount}}。{{.NoteHint}}。</div>
-    </div>
-  </div>
+      {{if .AppLink}}
+      <div class="panel" id="p-app" role="tabpanel">
+        <a class="appbtn" href="{{.AppLink}}"><svg class="ic"><use href="#i-phone"/></svg>打开币安 App 支付</a>
+        <p class="sub center">点击时会自动复制金额，便于在 App 中粘贴<br>未安装币安 App 时会打开网页版</p>
+        <ol class="steps">
+          <li>跳转后收款人已自动填好，请核对 UID <b>{{.UID}}</b></li>
+          <li>选择币种 <b>{{.Currency}}</b>，输入金额 <b>{{.ShowAmount}}</b></li>
+          <li>{{.NoteHint}}，确认支付后回到本页等待确认</li>
+        </ol>
+      </div>
+      {{end}}
 
-  <div class="card pc">
-    <div class="row"><span class="k">剩余时间</span><span class="v" id="cd">--:--</span></div>
-    <div class="row"><span class="k">状态</span><span class="v status" id="st"><span class="dot"></span><span id="stTxt">等待支付</span></span></div>
-  </div>
+      <div class="panel" id="p-manual" role="tabpanel">
+        <div class="kv">
+          <div class="kv-row"><div><span class="k">收款人币安 UID</span><span class="v">{{.UID}}</span></div><button type="button" class="copy" data-copy="{{.UID}}"><svg class="ic"><use href="#i-copy"/></svg><span>复制</span></button></div>
+          {{if .Email}}<div class="kv-row"><div><span class="k">或收款邮箱</span><span class="v">{{.Email}}</span></div><button type="button" class="copy" data-copy="{{.Email}}"><svg class="ic"><use href="#i-copy"/></svg><span>复制</span></button></div>{{end}}
+          <div class="kv-row"><div><span class="k">转账金额（{{.Currency}}）</span><span class="v">{{.ShowAmount}}</span></div><button type="button" class="copy" data-copy="{{.ShowAmount}}"><svg class="ic"><use href="#i-copy"/></svg><span>复制</span></button></div>
+          {{if .NoteCode}}<div class="kv-row"><div><span class="k">{{.NoteLabel}}</span><span class="v">{{.NoteCode}}</span></div><button type="button" class="copy" data-copy="{{.NoteCode}}"><svg class="ic"><use href="#i-copy"/></svg><span>复制</span></button></div>{{end}}
+        </div>
+        <div class="tip">路径：币安 App → 首页「支付」→ 转账 → 输入 UID → 选 <b>{{.Currency}}</b> → 输入金额 <b>{{.ShowAmount}}</b>。{{.NoteHint}}。</div>
+      </div>
+    </section>
 
-  <div class="card pc">
-    <details{{if eq .Mode "claim"}} open{{end}}>
-      <summary>{{if eq .Mode "claim"}}付完款后在这里回填币安订单编号{{else}}已付款但长时间未确认？回填币安订单编号{{end}}</summary>
-      <p class="muted" style="margin:10px 0 6px">币安 App → 支付 → 交易记录 → 点开这笔转账，复制「订单编号」（18 位数字）粘贴到此处：</p>
-      <input id="claimInput" inputmode="numeric" placeholder="例如 452021922068888888">
-      <div style="margin-top:10px"><button onclick="claim()">提交核验</button></div>
-      <div id="claimMsg"></div>
-    </details>
-  </div>
-  {{if .BackURL}}<div class="center muted pc" style="margin-top:6px"><a href="{{.BackURL}}" style="color:inherit">← 返回体验首页</a></div>{{end}}
+    <section class="card claim" id="claimCard">
+      <details{{if eq .Mode "claim"}} open{{end}}>
+        <summary><svg class="ic"><use href="#i-info"/></svg><span class="sum">{{if eq .Mode "claim"}}付完款后在这里回填币安订单编号{{else}}已付款但长时间未确认？<small>回填币安订单编号，立即核验到账</small>{{end}}</span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+        <p class="sub">币安 App → 支付 → 交易记录 → 点开这笔转账，复制「订单编号」（18 位数字）粘贴到此处：</p>
+        <div class="claim-form">
+          <input id="claimInput" inputmode="numeric" autocomplete="off" placeholder="粘贴订单编号" aria-label="币安订单编号">
+          <button type="button" class="btn2" id="claimBtn">提交核验</button>
+        </div>
+        <div id="claimMsg" role="status" aria-live="polite"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="ft">
+    <p><span><svg class="ic"><use href="#i-lock"/></svg>付款在币安 App 内完成，</span><span>本页不会索取你的密码或验证码</span></p>
+    {{if .BackURL}}<p class="pc"><a href="{{.BackURL}}">← 返回体验首页</a></p>{{end}}
+  </footer>
 </div>
 <script>
 var expiresAt={{.ExpiresAt}}, token={{.Token}}, isMobile={{.IsMobile}}, hasApp={{if .AppLink}}true{{else}}false{{end}}, hasQR={{if .HasQR}}true{{else}}false{{end}}, done=false;
-function showTab(t){document.querySelectorAll(".tab").forEach(function(e){e.classList.toggle("on",e.dataset.t===t)});document.querySelectorAll(".panel").forEach(function(e){e.classList.toggle("on",e.id==="p-"+t)})}
+var skew=Date.now()-{{.Now}}, cur={{.Currency}}, showAmount={{.ShowAmount}}, states=["is-expired","is-closed","is-underpaid"];
+function $(id){return document.getElementById(id)}
+function showTab(t){document.querySelectorAll(".tab").forEach(function(e){var on=e.dataset.t===t;e.classList.toggle("on",on);e.setAttribute("aria-selected",on?"true":"false")});document.querySelectorAll(".panel").forEach(function(e){e.classList.toggle("on",e.id==="p-"+t)})}
 document.querySelectorAll(".tab").forEach(function(e){e.onclick=function(){showTab(e.dataset.t)}});
 showTab(isMobile?(hasApp?"app":"manual"):(hasQR?"scan":"manual"));
-function cp(t,btn){navigator.clipboard&&navigator.clipboard.writeText(t).then(function(){var o=btn.textContent;btn.textContent="已复制";setTimeout(function(){btn.textContent=o},1200)})}
-function tick(){var left=Math.max(0,Math.floor((expiresAt-Date.now())/1000));var m=String(Math.floor(left/60)).padStart(2,"0"),s=String(left%60).padStart(2,"0");document.getElementById("cd").textContent=m+":"+s;if(left<=0&&!done){setTxt("已超时，若已付款请回填订单编号","bad")}}
+function fallbackCopy(t){var a=document.createElement("textarea");a.value=t;a.setAttribute("readonly","");a.style.cssText="position:fixed;top:0;left:0;opacity:0";document.body.appendChild(a);a.select();a.setSelectionRange(0,t.length);var ok=false;try{ok=document.execCommand("copy")}catch(e){}document.body.removeChild(a);return ok}
+function copyText(t){if(navigator.clipboard&&window.isSecureContext){return navigator.clipboard.writeText(t).catch(function(){if(!fallbackCopy(t))throw new Error("copy")})}return fallbackCopy(t)?Promise.resolve():Promise.reject(new Error("copy"))}
+function cp(t,btn){copyText(t).then(function(){if(!btn)return;var l=btn.querySelector("span")||btn,u=btn.querySelector("use");if(!btn.dataset.l)btn.dataset.l=l.textContent;l.textContent="已复制";btn.classList.add("ok");if(u)u.setAttribute("href","#i-check");clearTimeout(btn._t);btn._t=setTimeout(function(){l.textContent=btn.dataset.l;btn.classList.remove("ok");if(u)u.setAttribute("href","#i-copy")},1500)},function(){if(!btn)return;var l=btn.querySelector("span")||btn;if(!btn.dataset.l)btn.dataset.l=l.textContent;l.textContent="请长按手动复制";clearTimeout(btn._t);btn._t=setTimeout(function(){l.textContent=btn.dataset.l},2000)})}
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-copy]");if(b)cp(b.getAttribute("data-copy"),b)});
+var appBtn=document.querySelector(".appbtn");if(appBtn)appBtn.addEventListener("click",function(){copyText(showAmount).catch(function(){})});
+function pad(n){return String(n).padStart(2,"0")}
+function tick(){var left=Math.max(0,Math.floor((expiresAt-(Date.now()-skew))/1000));var h=Math.floor(left/3600),m=Math.floor(left%3600/60),s=left%60;
+ document.getElementById("cd").textContent=(h?h+":"+pad(m):pad(m))+":"+pad(s);
+ var tb=$("timer");tb.classList.toggle("low",left>0&&left<=60);tb.classList.toggle("over",left<=0);
+ if(left<=0&&!done&&!/is-(closed|underpaid)/.test(document.body.className)){setTxt("已超时，若已付款请回填订单编号","bad");setState("expired")}}
 function setTxt(t,cls){var el=document.getElementById("stTxt");el.textContent=t;el.className=cls||""}
+function setState(k,d){var b=document.body;states.forEach(function(c){b.classList.toggle(c,c==="is-"+k)});b.classList.add("is-end");
+ if(k==="underpaid"&&d&&d.actual_amount){$("ntActual").textContent="（实际到账 "+d.actual_amount+" "+cur+"）"}
+ if(k==="expired"){var dt=document.querySelector("#claimCard details");if(dt&&!dt.dataset.auto){dt.dataset.auto="1";dt.open=true}}}
+function fmtTime(ms){var t=new Date(ms);return t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate())+" "+pad(t.getHours())+":"+pad(t.getMinutes())+":"+pad(t.getSeconds())}
 function onPaid(d){if(done)return;done=true;document.title="✓ 支付成功";
  document.getElementById("st").classList.add("paid");setTxt("支付成功 ✓","good");
  document.querySelectorAll(".pc").forEach(function(c){c.style.display="none"});
+ states.concat("is-end").forEach(function(c){document.body.classList.remove(c)});document.body.classList.add("is-paid");
  document.getElementById("successCard").classList.add("on");
- if(d.actual_amount){var a=document.getElementById("succAmt");a.textContent=d.actual_amount;var s=document.createElement("small");s.textContent={{.Currency}};a.appendChild(s)}
+ if(d.actual_amount){var a=document.getElementById("succAmt");a.textContent=d.actual_amount;var s=document.createElement("small");s.textContent=cur;a.appendChild(s)}
+ if(d.paid_at){$("succTime").textContent="到账时间 "+fmtTime(d.paid_at)}
  if(navigator.vibrate){try{navigator.vibrate([80,40,80])}catch(e){}}
+ window.scrollTo(0,0);
  var m=document.getElementById("redirectMsg");
  if(d.redirect){var b=document.createElement("a");b.className="appbtn";b.href=d.redirect;b.textContent="立即返回商家";document.getElementById("redirectBtn").appendChild(b);
   var n=3;m.textContent=n+" 秒后自动返回商家…";var tm=setInterval(function(){n--;if(n<=0){clearInterval(tm);location.href=d.redirect}else{m.textContent=n+" 秒后自动返回商家…"}},1000)}
  else{m.textContent="您可以关闭此页面"}}
 function poll(){if(done)return;fetch("/pay/"+token+"/status",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
  if(d.status==="paid"){onPaid(d)}
- else if(d.status==="underpaid"){done=true;setTxt("实付金额不足，请联系商家处理","bad")}
- else if(d.status==="expired"){setTxt("订单已过期，若已付款请回填订单编号","bad")}
- else if(d.status==="closed"){done=true;setTxt("订单已关闭","bad")}
+ else if(d.status==="underpaid"){done=true;setTxt("实付金额不足，请联系商家处理","bad");setState("underpaid",d)}
+ else if(d.status==="expired"){setTxt("订单已过期，若已付款请回填订单编号","bad");setState("expired")}
+ else if(d.status==="closed"){done=true;setTxt("订单已关闭","bad");setState("closed")}
 }).catch(function(){})}
-function claim(){var v=document.getElementById("claimInput").value.trim();var msg=document.getElementById("claimMsg");
+function claim(){var v=document.getElementById("claimInput").value.replace(/\s+/g,"");var msg=document.getElementById("claimMsg"),btn=$("claimBtn");
  if(!/^[0-9]{6,20}$/.test(v)){msg.textContent="请输入 6~20 位数字订单编号";msg.className="bad";return}
- msg.textContent="核验中…";msg.className="";
+ msg.textContent="核验中…";msg.className="";btn.disabled=true;
  fetch("/pay/"+token+"/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({binance_order_id:v})})
  .then(function(r){return r.json()}).then(function(d){
    var c=(d.data&&d.data.code)||d.code;
    if(c==="OK"){msg.textContent="核验成功，订单已支付 ✓";msg.className="good";poll()}
-   else if(c==="UNDERPAID"){msg.textContent="已到账但金额不足，请联系商家";msg.className="bad"}
+   else if(c==="UNDERPAID"){msg.textContent="已到账但金额不足，请联系商家";msg.className="bad";poll()}
    else if(c==="NOT_FOUND"){msg.textContent="未找到这笔入账，请确认编号无误、稍等片刻再试";msg.className="bad"}
    else if(c==="CONSUMED"){msg.textContent="该笔转账已被使用";msg.className="bad"}
+   else if(c==="CURRENCY"){msg.textContent="这笔转账的币种与订单不符，请联系商家";msg.className="bad"}
+   else if(c==="STATE"){msg.textContent="订单当前状态不支持回填，请联系商家";msg.className="bad";poll()}
    else if(c==="ERR_RATE_LIMIT"){msg.textContent="操作过于频繁，请稍后再试";msg.className="bad"}
    else{msg.textContent="核验失败："+(d.message||c||"未知错误");msg.className="bad"}
- }).catch(function(){msg.textContent="网络错误，请重试";msg.className="bad"})}
+ }).catch(function(){msg.textContent="网络错误，请重试";msg.className="bad"}).then(function(){btn.disabled=false})}
+$("claimBtn").onclick=claim;
+$("claimInput").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();claim()}});
+document.addEventListener("visibilitychange",function(){if(!document.hidden)poll()});
+window.addEventListener("pageshow",function(e){if(e.persisted)poll()});
 tick();setInterval(tick,1000);poll();setInterval(poll,3000);
 </script>
 </body>

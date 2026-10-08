@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -42,8 +45,10 @@ func (a *App) handleCashier(w http.ResponseWriter, r *http.Request) {
 	// mode 仅用于体验站引导：note/claim 模式下引导付基础金额，让另外两种匹配方式有机会命中
 	mode := demoMode(r.URL.Query().Get("mode"))
 	showAmount := fmtAmount(o.PayAmount)
+	amountHead, amountTailStr := amountTail(o.PayAmount, o.BaseAmount)
 	if mode != "amount" {
 		showAmount = fmtAmount(o.BaseAmount)
+		amountHead, amountTailStr = showAmount, ""
 	}
 	noteLabel, noteHint := "转账备注（可选）", template.HTML("备注填 <b>"+o.NoteCode+"</b>（可选，能加速确认）")
 	switch mode {
@@ -56,11 +61,14 @@ func (a *App) handleCashier(w http.ResponseWriter, r *http.Request) {
 	if a.cfg.DemoEnabled && strings.HasPrefix(o.MerchantOrderID, "DEMO-") {
 		backURL = "/demo"
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	cashierTpl.Execute(w, map[string]any{
+	// 先渲染到缓冲区：模板出错时返回 500，而不是给付款方一张截断的半页
+	var buf bytes.Buffer
+	if err := cashierTpl.Execute(&buf, map[string]any{
 		"BackURL":    backURL,
 		"Mode":       mode,
 		"ShowAmount": showAmount,
+		"AmountHead": amountHead,
+		"AmountTail": amountTailStr,
 		"NoteLabel":  noteLabel,
 		"NoteHint":   noteHint,
 		"PayAmount":  fmtAmount(o.PayAmount),
@@ -72,9 +80,53 @@ func (a *App) handleCashier(w http.ResponseWriter, r *http.Request) {
 		"IsMobile":   isMobile(r),
 		"NoteCode":   o.NoteCode,
 		"ExpiresAt":  o.ExpiresAt,
+		"Now":        nowMs(), // 倒计时按服务端时间校正，付款方手机时间不准也不会提前显示超时
 		"Token":      o.Token,
 		"Status":     o.Status,
-	})
+	}); err != nil {
+		log.Printf("[error] 渲染收银页失败 order=%s: %v", o.ID, err)
+		http.Error(w, "internal error", 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(buf.Bytes())
+}
+
+// amountTail 把唯一金额拆成「主体」和「识别尾数」，收银页高亮尾数，提醒付款方不要抹零：
+// 尾数从基础金额的精度之后开始（5 → 5.0037 拆成 "5" + ".0037"，0.5 → 0.5037 拆成 "0.5" + "037"）；
+// 基础金额已用满小数位时，从第一个与基础金额不同的数字开始。拆不出来时返回整串、尾数为空。
+func amountTail(pay, base int64) (head, tail string) {
+	s := fmtAmount(pay)
+	if pay == base || pay <= 0 || base <= 0 {
+		return s, ""
+	}
+	dot := strings.IndexByte(s, '.')
+	if dot < 0 {
+		return s, ""
+	}
+	cut := dot
+	if bd := decimalsOf(base); bd > 0 {
+		cut = dot + 1 + bd
+	}
+	if cut >= len(s) {
+		// 补齐到 8 位小数逐位比较，找第一个不同的数字
+		full := func(v int64) string { return fmt.Sprintf("%d.%08d", v/scale, v%scale) }
+		p, b := full(pay), full(base)
+		cut = -1
+		for i := 0; i < len(p) && i < len(b); i++ {
+			if p[i] != b[i] {
+				cut = i
+				break
+			}
+		}
+		if cut >= len(s) {
+			return s, ""
+		}
+	}
+	if cut <= 0 {
+		return s, ""
+	}
+	return s[:cut], s[cut:]
 }
 
 func (a *App) redirectURL(o *Order) string {
