@@ -137,17 +137,31 @@ func (m *Matcher) record(as *accountState, polled bool, err error) {
 	}
 }
 
-// fetchWindow 拉取自 startMs 以来的流水，满 100 条时向前翻页（最多 5 页），按时间升序返回。
+const (
+	fetchPageLimit  = 100 // 币安单页上限
+	maxFetchWindows = 100 // 单次核销最多请求的窗口数，防止异常数据把轮询拖死
+)
+
+// fetchWindow 拉取自 startMs 以来的流水。接口单页最多 100 条且无游标：
+// 窗口满页时二分切窗继续拉，不依赖接口返回顺序；同一毫秒超过一页则显式报错，
+// 绝不静默漏单。
 func (m *Matcher) fetchWindow(as *accountState, startMs int64) ([]payTxn, error) {
+	type window struct{ start, end int64 } // end=0 表示不传 endTime（拉到最新）
 	seen := map[string]bool{}
 	var all []payTxn
-	endMs := int64(0)
-	for page := 0; page < 5; page++ {
-		txns, err := as.bc.PayTransactions(startMs, endMs, 100)
+	windows := []window{{start: startMs}}
+	requests := 0
+	for len(windows) > 0 {
+		w := windows[len(windows)-1]
+		windows = windows[:len(windows)-1]
+		requests++
+		if requests > maxFetchWindows {
+			return nil, errors.New("流水窗口请求次数超过上限")
+		}
+		txns, err := as.bc.PayTransactions(w.start, w.end, fetchPageLimit)
 		if err != nil {
 			return nil, err
 		}
-		minT := int64(0)
 		for _, t := range txns {
 			key := t.OrderID
 			if key == "" {
@@ -158,14 +172,20 @@ func (m *Matcher) fetchWindow(as *accountState, startMs int64) ([]payTxn, error)
 			}
 			seen[key] = true
 			all = append(all, t)
-			if minT == 0 || t.Time < minT {
-				minT = t.Time
-			}
 		}
-		if len(txns) < 100 || minT == 0 {
-			break
+		if len(txns) < fetchPageLimit {
+			continue
 		}
-		endMs = minT - 1
+		// 满页：这一窗里的行可能被截断，二分时间窗继续拉。
+		end := w.end
+		if end == 0 {
+			end = nowMs()
+		}
+		if end <= w.start {
+			return nil, errors.New("币安流水窗口截断且无法再二分")
+		}
+		mid := w.start + (end-w.start)/2
+		windows = append(windows, window{start: mid + 1, end: w.end}, window{start: w.start, end: mid})
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].Time < all[j].Time })
 	return all, nil
